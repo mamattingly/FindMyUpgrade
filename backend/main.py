@@ -180,6 +180,53 @@ def _spec_from_api(data):
     return "Unknown"
 
 
+def _api_name(value):
+    return value.get("name") if isinstance(value, dict) else value
+
+def _numeric_value(value):
+    if isinstance(value, dict):
+        return value.get("value")
+    return value
+
+def _normalise_thewowdb_item(data, item_id):
+    preview = data.get("preview_item") or {}
+    raw_stats = data.get("stats") or data.get("attributes") or preview.get("stats") or []
+    stats, stats_display = [], []
+    if isinstance(raw_stats, dict):
+        raw_stats = [{"name": k, "value": _numeric_value(v)} for k, v in raw_stats.items()]
+    for stat in raw_stats if isinstance(raw_stats, list) else []:
+        if not isinstance(stat, dict):
+            continue
+        stat_name = _api_name(stat.get("name") or stat.get("stat") or stat.get("type"))
+        value = stat.get("value", stat.get("amount"))
+        if stat_name and value is not None:
+            stats.append({"name": stat_name, "value": _numeric_value(value)})
+        display = stat.get("display") or stat.get("display_string")
+        if isinstance(display, dict):
+            display = display.get("display_string") or display.get("text")
+        if display:
+            stats_display.append(str(display))
+    inventory = data.get("inventory_type") or data.get("inventoryType") or data.get("slot")
+    item_class = data.get("item_class") or data.get("itemClass") or data.get("class")
+    item_subclass = data.get("item_subclass") or data.get("itemSubclass") or data.get("subclass")
+    level = data.get("item_level", data.get("itemLevel", data.get("level")))
+    if level is None:
+        level = (preview.get("level") or {}).get("value")
+    armor = data.get("armor") or preview.get("armor") or 0
+    weapon = data.get("weapon") or preview.get("weapon") or {}
+    dps = weapon.get("dps") if isinstance(weapon, dict) else data.get("dps")
+    links = data.get("links") or {}
+    return {
+        "id": int(item_id), "name": data.get("name"),
+        "required_level": data.get("required_level", data.get("requiredLevel", 0)),
+        "inventory_type": _api_name(inventory), "item_class": _api_name(item_class),
+        "item_subclass": _api_name(item_subclass), "item_level": _numeric_value(level),
+        "stats": stats, "stats_display": stats_display,
+        "armor": _numeric_value(armor), "weapon_dps": _numeric_value(dps),
+        "data_url": links.get("html") or data.get("url"),
+        "data_source": "TheWoWDB",
+    }
+
 async def _static_item_data(client, token, region, item_id, semaphore):
     cache_key = (region, int(item_id))
     if cache_key in ITEM_CACHE:
@@ -190,42 +237,54 @@ async def _static_item_data(client, token, region, item_id, semaphore):
             response = await client.get(url,
                 params={"namespace": f"static-forever-{region}", "locale": REGION_LOCALES[region]},
                 headers={"Authorization": f"Bearer {token}"}, timeout=8)
-            if response.status_code != 200:
-                ITEM_CACHE[cache_key] = None
-                return None
-            data = response.json()
-            preview = data.get("preview_item") or {}
-            raw_stats = preview.get("stats") or []
-            stats, stats_display = [], []
-            for stat in raw_stats:
-                if not isinstance(stat, dict):
-                    continue
-                stat_type = stat.get("type") or {}
-                stat_name = stat_type.get("name") if isinstance(stat_type, dict) else None
-                if stat_name and stat.get("value") is not None:
-                    stats.append({"name": stat_name, "value": stat.get("value")})
-                display = (stat.get("display") or {}).get("display_string")
-                if display:
-                    stats_display.append(display)
-            item_level = (preview.get("level") or {}).get("value")
-            if item_level is None:
-                raw_level = data.get("level")
-                item_level = raw_level.get("value") if isinstance(raw_level, dict) else raw_level
-            armor = preview.get("armor") or data.get("armor") or {}
-            weapon = preview.get("weapon") or data.get("weapon") or {}
-            dps = weapon.get("dps") or {}
-            result = {
-                "id": int(item_id), "name": data.get("name"),
-                "required_level": data.get("required_level"),
-                "inventory_type": (data.get("inventory_type") or {}).get("name"),
-                "item_class": (data.get("item_class") or {}).get("name"),
-                "item_subclass": (data.get("item_subclass") or {}).get("name"),
-                "item_level": item_level, "stats": stats, "stats_display": stats_display,
-                "armor": armor.get("value") if isinstance(armor, dict) else armor,
-                "weapon_dps": dps.get("value") if isinstance(dps, dict) else dps,
-            }
-            ITEM_CACHE[cache_key] = result
-            return result
+            if response.status_code == 200:
+                data = response.json()
+                preview = data.get("preview_item") or {}
+                raw_stats = preview.get("stats") or data.get("stats") or []
+                stats, stats_display = [], []
+                for stat in raw_stats if isinstance(raw_stats, list) else []:
+                    if not isinstance(stat, dict):
+                        continue
+                    stat_type = stat.get("type") or {}
+                    stat_name = stat_type.get("name") if isinstance(stat_type, dict) else None
+                    if stat_name and stat.get("value") is not None:
+                        stats.append({"name": stat_name, "value": stat.get("value")})
+                    display = (stat.get("display") or {}).get("display_string") if isinstance(stat.get("display"), dict) else None
+                    if display:
+                        stats_display.append(display)
+                item_level = (preview.get("level") or {}).get("value")
+                if item_level is None:
+                    item_level = _numeric_value(data.get("level"))
+                armor = preview.get("armor") or data.get("armor") or {}
+                weapon = preview.get("weapon") or data.get("weapon") or {}
+                dps = weapon.get("dps") or {}
+                result = {
+                    "id": int(item_id), "name": data.get("name"),
+                    "required_level": data.get("required_level"),
+                    "inventory_type": _api_name(data.get("inventory_type")),
+                    "item_class": _api_name(data.get("item_class")),
+                    "item_subclass": _api_name(data.get("item_subclass")),
+                    "item_level": item_level, "stats": stats, "stats_display": stats_display,
+                    "armor": _numeric_value(armor), "weapon_dps": _numeric_value(dps),
+                    "data_url": f"https://www.wowhead.com/forever/item={int(item_id)}",
+                    "data_source": "Blizzard",
+                }
+                if result.get("name") and (result.get("stats") or result.get("armor") or result.get("weapon_dps")):
+                    ITEM_CACHE[cache_key] = result
+                    return result
+            # Blizzard's Forever static namespace does not contain every
+            # Classic-derived item. Fall back to TheWoWDB's public Forever
+            # item endpoint, which publishes current client item records.
+            twdb = await client.get(f"https://thewowdb.com/api/v1/forever/item/{int(item_id)}",
+                headers={"User-Agent": "WoWForeverDungeonAdvisor/0.5 (+https://github.com/mamattingly/FindMyUpgrade)",
+                         "Accept": "application/json"}, timeout=8)
+            if twdb.status_code == 200:
+                result = _normalise_thewowdb_item(twdb.json(), item_id)
+                if result.get("name"):
+                    ITEM_CACHE[cache_key] = result
+                    return result
+            ITEM_CACHE[cache_key] = None
+            return None
         except (httpx.HTTPError, ValueError, TypeError, KeyError):
             ITEM_CACHE[cache_key] = None
             return None
