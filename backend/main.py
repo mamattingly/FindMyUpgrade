@@ -1268,20 +1268,21 @@ async def scan(req: ScanRequest):
 
 
 def _modelviewer_asset_candidates(viewer_flavor, clean):
-    """Use the requested data pack first, then compatible shared Classic assets."""
-    candidates = [f"https://wow.zamimg.com/modelviewer/{viewer_flavor}/{clean}"]
-    if viewer_flavor == "live":
-        # A Forever character is based on Classic-era models; old item display
-        # records and character meshes may be absent from Wowhead's live pack.
-        candidates.append(f"https://wow.zamimg.com/modelviewer/classic/{clean}")
-        match = re.fullmatch(r"meta/armor/(21|22)/(\d+)\.json", clean)
+    """Try the selected Wowhead data pack, then the alternate pack for missing legacy assets."""
+    flavors = [viewer_flavor, "live" if viewer_flavor == "classic" else "classic"]
+    candidates = []
+    for flavor in flavors:
+        candidates.append(f"https://wow.zamimg.com/modelviewer/{flavor}/{clean}")
+        # Character equipment uses legacy armor-slot metadata in Classic. Newer
+        # data packs expose the same item appearance metadata under meta/item.
+        match = re.fullmatch(r"meta/armor/(21|22)/(\\d+)\\.json", clean)
         if match:
             candidates.append(
-                f"https://wow.zamimg.com/modelviewer/classic/meta/item/{match.group(2)}.json")
-        match = re.fullmatch(r"meta/armor/5/(\d+)\.json", clean)
+                f"https://wow.zamimg.com/modelviewer/{flavor}/meta/item/{match.group(2)}.json")
+        match = re.fullmatch(r"meta/armor/5/(\\d+)\\.json", clean)
         if match:
             candidates.append(
-                f"https://wow.zamimg.com/modelviewer/classic/meta/armor/20/{match.group(1)}.json")
+                f"https://wow.zamimg.com/modelviewer/{flavor}/meta/armor/20/{match.group(1)}.json")
     return list(dict.fromkeys(candidates))
 
 
