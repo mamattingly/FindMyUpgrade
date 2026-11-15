@@ -471,3 +471,90 @@ body{
  .character-stage{background:linear-gradient(145deg,#314b48,#1b3034 80%)}
  .character-stage:before{opacity:.18}
 }
+
+
+/* Cinematic Pandaria art direction — keep the live character as the hero. */
+body{
+ background-color:#10191b;
+ background-image:
+  linear-gradient(180deg,rgba(13,22,24,.88),rgba(19,29,30,.94) 42%,#f4f6f8 78%),
+  url("https://wow.zamimg.com/uploads/screenshots/normal/351949.jpg");
+ background-position:center top,center 70px;
+ background-size:cover,cover;
+ background-attachment:fixed,fixed;
+ background-repeat:no-repeat;
+}
+.app-shell{position:relative}
+.topbar{border-color:#ffffff24}
+.brand b,.brand small,.top-caption{color:#e4efeb}
+.top-actions select{background:#172426;color:#e7f0ed;border-color:#3b5550}
+.has-character .search-hero h1{color:#f3f7f5}
+.has-character .search-hero h1 em{color:#9fd0bd}
+.has-character .search-hero p{color:#c0d0cb}
+.has-character .kicker{color:#8fc2ae}
+.search-card{background:rgba(247,251,249,.96);backdrop-filter:blur(14px)}
+.character-stage{
+ min-height:530px;
+ grid-template-columns:minmax(350px,470px) minmax(0,1fr) auto;
+ padding:22px 38px;
+ border:1px solid rgba(175,218,202,.34);
+ border-radius:18px;
+ background:
+  linear-gradient(90deg,rgba(7,18,20,.3) 0%,rgba(9,20,22,.82) 37%,rgba(10,22,24,.91) 100%),
+  linear-gradient(0deg,rgba(6,17,18,.44),rgba(6,17,18,.18)),
+  url("https://wow.zamimg.com/uploads/screenshots/normal/351949.jpg") center 44%/cover no-repeat;
+ box-shadow:0 24px 65px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.12);
+}
+.character-stage:before{
+ opacity:.32;
+ background-image:
+  radial-gradient(circle at 16% 25%,rgba(196,232,215,.8) 0 1px,transparent 1.7px),
+  radial-gradient(circle at 70% 55%,rgba(133,202,177,.65) 0 1px,transparent 1.8px);
+ background-size:37px 43px,59px 61px;
+ mask-image:linear-gradient(90deg,#000 0%,transparent 78%);
+ animation:jade-dust-drift 24s linear infinite;
+}
+.character-stage:after{
+ content:"";position:absolute;z-index:-1;inset:-20%;
+ background:radial-gradient(ellipse at 22% 48%,rgba(64,171,143,.23),transparent 37%),radial-gradient(ellipse at 82% 35%,rgba(79,141,163,.16),transparent 34%);
+ pointer-events:none;animation:jade-aura 9s ease-in-out infinite alternate;
+}
+.character-stage-art{min-height:470px}
+.character-stage-art:before{
+ width:min(100%,430px);
+ background:radial-gradient(circle,rgba(150,218,193,.28),rgba(82,153,137,.13) 48%,transparent 70%);
+ filter:blur(2px);
+}
+.character-stage-art:after{
+ background:#69c7a5;filter:blur(40px);opacity:.26;
+}
+.character-model{height:470px;max-width:430px;filter:drop-shadow(0 18px 26px rgba(0,0,0,.36))}
+.character-model-canvas{filter:drop-shadow(0 0 22px rgba(115,211,174,.12))}
+.stage-orbit{border-color:rgba(164,225,199,.62);box-shadow:0 0 18px rgba(111,204,168,.12)}
+.stage-orbit-two{border-color:rgba(216,183,112,.55)}
+.stage-caption,.stage-model-label{color:#b8d9ca;text-shadow:0 1px 8px #061312}
+.character-stage .char-main>.kicker{color:#9bcbb7}
+.character-stage .char-name{color:#f3f8f5;text-shadow:0 3px 22px rgba(0,0,0,.38)}
+.character-stage .char-sub{color:#c0d2cb}
+.character-stage .refresh-character{background:#b5d9c9;color:#10231d;border-color:#b5d9c9}
+.character-stage .native-export,.character-stage .armory-link{background:rgba(17,37,35,.78);color:#d7eee4;border-color:rgba(166,214,194,.4)}
+.character-stage .native-export:disabled{opacity:.42}
+.goal-panel,.run-log-panel{backdrop-filter:blur(12px)}
+.recommendation-layout{margin-top:18px}
+@keyframes jade-dust-drift{from{background-position:0 0,0 0}to{background-position:74px -58px,-90px 70px}}
+@keyframes jade-aura{from{opacity:.45;transform:translate3d(-1%,0,0) scale(.98)}to{opacity:.9;transform:translate3d(1%,1%,0) scale(1.03)}}
+@media(prefers-reduced-motion:reduce){
+ .character-stage:before,.character-stage:after{animation:none}
+}
+@media(max-width:900px){
+ .character-stage{grid-template-columns:minmax(270px,360px) minmax(0,1fr);min-height:430px;padding:18px}
+ .character-stage-art{min-height:390px}.character-model{height:390px}
+}
+@media(max-width:600px){
+ body{background-attachment:scroll,scroll}
+ .has-character .search-hero h1{color:#f3f7f5}
+ .character-stage{background-position:center,center,48% center}
+ .character-stage-art{min-height:330px}.character-model{height:330px}
+ .character-stage .char-name{color:#f3f8f5}
+ .character-stage .char-sub{color:#c0d2cb}
+}
