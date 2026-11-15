@@ -234,7 +234,7 @@ def test_classic_model_viewer_uses_blizzard_appearance_ids_and_display_order(mon
     import asyncio
     from backend import main
 
-    async def fake_static_json(client, token, region, path):
+    async def fake_static_json(client, token, region, path, legacy=False, required_field=None):
         if path == "data/wow/item/123":
             return {"appearances": [{"id": 900}]}
         if path == "data/wow/item/125":
