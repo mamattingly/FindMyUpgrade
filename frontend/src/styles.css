@@ -9,3 +9,5 @@
 @media(max-width:620px){.upgradegrid{grid-template-columns:1fr}.bestdungeon{padding:14px}.upgradeitem{align-items:flex-start}.dungeonmeta{display:block}.dungeonmeta span{display:block;margin:4px 0}}
 
 .accessnote{margin:0 0 12px;padding:9px 11px;background:#30281d;border:1px solid #685339;border-radius:6px;color:#e3c89e;font:10px 'DM Mono'}
+
+.upgradestats{color:#d7e0e6!important;font:10px 'DM Mono';margin-top:4px!important;margin-bottom:0!important;white-space:normal;}
