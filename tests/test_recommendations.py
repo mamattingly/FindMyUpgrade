@@ -102,5 +102,5 @@ def test_two_hander_must_replace_both_mainhand_and_offhand(monkeypatch):
                "drop_chance": 25, "drop_source_name": "Test Boss"},
     }
     result = rec.recommend_dungeons(character, equipped, item_data)
-    assert result["status"] == "drop_rates_unavailable"
+    assert result["status"] == "no_upgrades_found"
     assert result["recommended"] is None
