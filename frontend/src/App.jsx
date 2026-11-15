@@ -61,10 +61,11 @@ export default function App(){
    <section className="goal-panel">
     <div className="section-heading"><div><div className="kicker">FARMING PREFERENCES</div><h2>What matters on your next run?</h2></div><span className="optional-tag">Optional goals</span></div>
     <div className="goal-options">
-     <button className={"goal-option "+(goals.gear?"active":"")} onClick={()=>toggleGoal("gear")}><span className="goal-check">{goals.gear?"✓":""}</span><Shield size={18}/><span><b>Gear upgrades</b><small>Improve equipped slots</small></span></button>
+     <div className="goal-option active"><span className="goal-check">✓</span><Shield size={18}/><span><b>Gear upgrades</b><small>Always included</small></span></div>
      <button className={"goal-option "+(goals.tailoring?"active":"")} onClick={()=>toggleGoal("tailoring")}><span className="goal-check">{goals.tailoring?"✓":""}</span><Package size={18}/><span><b>Tailoring</b><small>Cloth & skill progress</small></span></button>
      <button className={"goal-option "+(goals.enchanting?"active":"")} onClick={()=>toggleGoal("enchanting")}><span className="goal-check">{goals.enchanting?"✓":""}</span><Sparkles size={18}/><span><b>Enchanting</b><small>Disenchantable loot</small></span></button>
     </div>
+    {(goals.tailoring||goals.enchanting)&&<p className="goal-note">Profession skills are saved with this character. Profession material values are being added after drop-source validation; they do not affect the current dungeon ranking yet.</p>}
     {(goals.tailoring||goals.enchanting)&&<div className="goal-skills">{["Tailoring","Enchanting"].filter(p=>goals[p.toLowerCase()]).map(p=><label key={p}>{p} skill<input type="number" min="0" max="300" value={Number(currentSkills[p]??current.professions?.find(x=>x.name===p)?.skill??0)} onChange={e=>setSkill(p,e.target.value)}/><span>/ 300</span></label>)}</div>}
    </section>
    <section className="recommendation-layout">
