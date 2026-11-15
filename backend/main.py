@@ -1233,33 +1233,36 @@ async def scan(req: ScanRequest):
 
 
 
-@app.get("/api/modelviewer/classic/{asset_path:path}")
-async def classic_modelviewer_asset(asset_path: str):
-    """Same-origin, cacheable proxy for the Classic model-viewer data files."""
+@app.get("/api/modelviewer/{viewer_flavor}/{asset_path:path}")
+async def modelviewer_asset(viewer_flavor: str, asset_path: str):
+    """Same-origin, cacheable proxy for Classic and live WoW model-viewer data."""
+    if viewer_flavor not in {"classic", "live"}:
+        raise HTTPException(400, "Unsupported model viewer data set.")
     clean = asset_path.strip("/")
     if not clean or any(part in {".", ".."} for part in clean.split("/")):
         raise HTTPException(400, "Invalid model asset path.")
-    cached = MODEL_ASSET_CACHE.get(clean)
+    cache_key = f"{viewer_flavor}/{clean}"
+    cached = MODEL_ASSET_CACHE.get(cache_key)
     if cached:
         body, media_type = cached
         return Response(content=body, media_type=media_type,
                         headers={"Cache-Control": "public, max-age=86400"})
-    url = f"https://wow.zamimg.com/modelviewer/classic/{clean}"
+    url = f"https://wow.zamimg.com/modelviewer/{viewer_flavor}/{clean}"
     try:
         async with httpx.AsyncClient(timeout=25, follow_redirects=True) as client:
             upstream = await client.get(url)
     except httpx.HTTPError as exc:
         raise HTTPException(502, "The WoW model asset server could not be reached.") from exc
     if upstream.status_code == 404:
-        raise HTTPException(404, "Classic model asset not found.")
+        raise HTTPException(404, f"{viewer_flavor.title()} model asset not found.")
     if upstream.status_code != 200:
-        raise HTTPException(502, f"Classic model asset server returned HTTP {upstream.status_code}.")
+        raise HTTPException(502, f"Model asset server returned HTTP {upstream.status_code}.")
     media_type = upstream.headers.get("content-type", "application/octet-stream").split(";")[0]
     body = upstream.content
     if len(body) <= 12 * 1024 * 1024:
         if len(MODEL_ASSET_CACHE) >= 160:
             MODEL_ASSET_CACHE.pop(next(iter(MODEL_ASSET_CACHE)))
-        MODEL_ASSET_CACHE[clean] = (body, media_type)
+        MODEL_ASSET_CACHE[cache_key] = (body, media_type)
     return Response(content=body, media_type=media_type,
                     headers={"Cache-Control": "public, max-age=86400"})
 
