@@ -65,11 +65,13 @@ export default function CharacterModel({modelData,armoryRenderUrl,name}){
     const library=await import("wow-model-viewer");
     // The Classic model metadata uses its own customization and equipment tables.
     window.WOTLK_TO_RETAIL_DISPLAY_ID_API=undefined;
+    const toViewerSlot=(slot)=>slot===16?21:slot===17?22:slot;
     const character={
      race:Number(modelData.race),
      gender:Number(modelData.gender),
      ...getViewerCustomization(modelData),
-     items:modelData.items
+     // wow-model-viewer reserves 21/22 for main-hand/off-hand display slots.
+     items:modelData.items.map(([slot,displayId])=>[toViewerSlot(Number(slot)),Number(displayId)])
     };
     viewer=await library.generateModels(1.45,"#"+id,character,"classic");
     if(disposed){viewer?.destroy?.();return;}
