@@ -89,6 +89,6 @@ export default function CharacterModel({modelData,armoryRenderUrl,name}){
   {status!=="ready"&&armoryRenderUrl&&<div className="armory-render-fallback"><img src={armoryRenderUrl.startsWith("http")?armoryRenderUrl:"https://"+armoryRenderUrl} alt={name?name+" official Armory character render":"Official Armory character render"}/></div>}
   {status!=="ready"&&<div className="model-status" role="status">{status==="loading"?"Loading Armory model…":detail}</div>}
   {status==="ready"&&<span className="model-hint">3D ARMORY MODEL · DRAG TO ROTATE</span>}
-  {status==="ready"&&<span className="model-gear-count">{loadedCount} equipped appearances</span>}
+  {status==="ready"&&<span className="model-gear-count">{loadedCount} / {modelData?.equipped_visual_item_count||loadedCount} gear pieces rendered</span>}
  </div>;
 }
