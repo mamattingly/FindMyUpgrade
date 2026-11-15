@@ -247,8 +247,13 @@ def recommend_dungeons(character: dict[str, Any], gear: list[dict[str, Any]],
                     continue
                 score = item_score(item, class_name)
                 equipped = current.get(key, [])
+                inventory_type = (item.get("inventory_type") or "").casefold()
                 if key in ("Ring", "Trinket"):
                     baseline = min((x[0] for x in equipped), default=0.0) if len(equipped) >= 2 else 0.0
+                elif inventory_type in ("two-hand", "two hand"):
+                    main_score = max((x[0] for x in current.get("Main Hand", [])), default=0.0)
+                    offhand_score = max((x[0] for x in current.get("Off Hand", [])), default=0.0)
+                    baseline = main_score + offhand_score
                 else:
                     baseline = max((x[0] for x in equipped), default=0.0)
                 gain = round(score - baseline, 3)
