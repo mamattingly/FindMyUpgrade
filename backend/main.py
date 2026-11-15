@@ -1269,7 +1269,7 @@ async def scan(req: ScanRequest):
 
 def _modelviewer_asset_candidates(viewer_flavor, clean):
     """Try the selected Wowhead data pack, then the alternate pack for missing legacy assets."""
-    flavors = [viewer_flavor, "live" if viewer_flavor == "classic" else "classic"]
+    flavors = [viewer_flavor] if clean.startswith("meta/item/") else [viewer_flavor, "live" if viewer_flavor == "classic" else "classic"]
     candidates = []
     for flavor in flavors:
         candidates.append(f"https://wow.zamimg.com/modelviewer/{flavor}/{clean}")
