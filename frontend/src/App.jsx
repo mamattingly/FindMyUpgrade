@@ -1,5 +1,6 @@
 import {useEffect,useMemo,useState} from "react";
 import {Search,ChevronDown,ExternalLink,Shield,Compass,BookOpen,Sparkles,Target,Package} from "lucide-react";
+import CharacterModel from "./CharacterModel.jsx";
 const KEY="wow-forever-advisor-profiles", REGION_KEY="wow-forever-advisor-region", SKILL_KEY="wow-forever-profession-skills";
 const GOALS_KEY="wow-forever-farming-goals";
 const NAMES=["Alchemy","Blacksmithing","Enchanting","Engineering","Herbalism","Leatherworking","Mining","Skinning","Tailoring","Cooking","First Aid","Fishing"];
@@ -8,6 +9,21 @@ const read=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key)||JSO
 const iconFallback="https://wow.zamimg.com/images/wow/icons/large/inv_misc_questionmark.jpg";
 function rankInfo(skill){if(skill>=300)return {rank:"Artisan",next:null};if(skill>=200)return {rank:"Expert",next:300};if(skill>=125)return {rank:"Expert",next:200};if(skill>=75)return {rank:"Journeyman",next:125};if(skill>=50)return {rank:"Journeyman",next:75};return {rank:"Apprentice",next:50};}
 function ItemIcon({src,name,size="large"}){return <span className={"itemicon "+size}><img src={src||iconFallback} alt={name+" icon"} loading="lazy" onError={e=>{e.currentTarget.src=iconFallback}}/></span>}
+function relevantStats(stats,className,spec){
+ const healer=(className==="Priest"&&["Discipline","Holy"].includes(spec))||(className==="Druid"&&spec==="Restoration")||(className==="Shaman"&&spec==="Restoration")||(className==="Paladin"&&spec==="Holy");
+ const caster=["Mage","Warlock"].includes(className)||(className==="Priest"&&spec==="Shadow")||(className==="Druid"&&spec==="Balance")||(className==="Shaman"&&spec==="Elemental");
+ const tank=(className==="Warrior"&&spec==="Protection")||(className==="Paladin"&&spec==="Protection");
+ const physical=["Hunter","Rogue","Warrior"].includes(className)||(className==="Druid"&&spec==="Feral")||(className==="Shaman"&&spec==="Enhancement")||(className==="Paladin"&&spec==="Retribution");
+ return (stats||[]).filter(s=>{
+  const n=String(s.name||"").toLowerCase();
+  if(/intellect|stamina/.test(n))return true;
+  if(healer)return /spirit|mana|healing|spell critical|critical strike/.test(n);
+  if(caster)return /spell damage|spell power|spell critical|critical strike|spirit|mana/.test(n);
+  if(tank)return /strength|defense|dodge|parry|block|armor|critical/.test(n);
+  if(physical)return /agility|strength|attack power|hit|expertise|critical/.test(n);
+  return !/spell damage|spell power|healing/.test(n);
+ }).map(s=>(s.value>0?"+":"")+s.value+" "+s.name);
+}
 function StatLine({stats}){if(!stats?.length)return null;return <div className="statline">{stats.map((s,i)=><span key={i}>{s}</span>)}</div>}
 export default function App(){
  const [profiles,setProfiles]=useState(()=>read(KEY,[]).filter(p=>p&&p.name&&p.class&&p.class!=="Unknown"&&Number.isFinite(p.level)));
@@ -23,11 +39,11 @@ export default function App(){
  const current=profiles[active],skillKey=current?current.region+":"+current.name.toLowerCase():"";
  const currentSkills=skills[skillKey]||{},gear=useMemo(()=>current?.gear||[],[current]);
  const rec=current?.recommendations,best=rec?.recommended;
- async function scan(){
-  if(name.trim().split(/\s+/).length!==2){setMessage("Enter the character's first and last name.");return}
+ async function scan(characterName=name,characterRegion=region){
+  if(characterName.trim().split(/\s+/).length!==2){setMessage("Enter the character's first and last name.");return}
   setBusy(true);setMessage("");
   try{
-   const r=await fetch("/api/scan",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({region,name:name.trim()})});
+   const r=await fetch("/api/scan",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({region:characterRegion,name:characterName.trim()})});
    const d=await r.json();if(!r.ok)throw new Error(d.detail||"Character lookup failed.");
    const profile={...d.character,id:crypto.randomUUID(),url:d.source_url,status:d.scan_status,scannedAt:new Date().toISOString(),gear:d.equipped_gear||[],professions:d.professions||[],apiStatus:d.api_status,recommendations:d.dungeon_recommendations||null};
    setProfiles(old=>[profile,...old.filter(p=>!(p.region===profile.region&&p.name?.toLowerCase()===profile.name.toLowerCase()))]);
@@ -78,9 +94,9 @@ export default function App(){
   {message&&<div className="notice" role="status">{message}</div>}
   {!current?<section className="welcome-panel"><div className="welcome-icon"><Compass size={25}/></div><h2>Start with your character</h2><p>Search your WoW Forever character to see equipped items, useful dungeon drops, and a farming plan shaped around your goals.</p></section>:<>
    <section className="character-strip">
-    <div className="char-avatar">{(current.name||"?").split(" ").map(x=>x[0]).join("").slice(0,2).toUpperCase()}</div>
+    <div className="character-model"><CharacterModel race={current.race} className={current.class} spec={current.spec}/></div>
     <div className="char-main"><div className="char-name">{current.name}</div><div className="char-sub">{current.race} {current.class} <span>·</span> Level {current.level} <span>·</span> {current.spec||"Specialization unavailable"}</div></div>
-    <a className="armory-link" href={current.url} target="_blank" rel="noreferrer">Armory <ExternalLink size={13}/></a>
+    <div className="character-actions"><button className="refresh-character" disabled={busy} onClick={()=>scan(current.name,String(current.region||region).toLowerCase())}>{busy?"Syncing…":"Refresh data"}</button><a className="armory-link" href={current.url} target="_blank" rel="noreferrer">Armory <ExternalLink size={13}/></a></div>
    </section>
    <section className="goal-panel">
     <div className="section-heading"><div><div className="kicker">FARMING PREFERENCES</div><h2>What matters on your next run?</h2></div><span className="optional-tag">Optional goals</span></div>
@@ -109,7 +125,7 @@ export default function App(){
     </div>
     <aside className="side-column">
      <div className="side-card"><div className="kicker">CHARACTER SNAPSHOT</div><h3>Equipped gear</h3><div className="gear-count">{gear.length} items synced from Armory</div>
-      <div className="gear-grid">{gear.map((g,i)=><div className="gear-tile" key={g.id||i} title={g.name+" · "+g.slot}><ItemIcon src={g.icon_url} name={g.name}/><span className="gear-info"><b>{g.name}</b><small>{g.slot} · {g.item_level?"iLvl "+g.item_level:""}</small><StatLine stats={(g.stats||[]).map(s=>(s.value>0?"+":"")+s.value+" "+s.name)}/></span></div>)}</div>
+      <div className="gear-grid">{gear.map((g,i)=><div className="gear-tile" key={g.id||i} title={g.name+" · "+g.slot}><ItemIcon src={g.icon_url} name={g.name}/><span className="gear-info"><b>{g.name}</b><small>{g.slot} · {g.item_level?"iLvl "+g.item_level:""}</small><StatLine stats={relevantStats(g.stats,current.class,current.spec)}/></span></div>)}</div>
      </div>
      <details className="side-card profession-details"><summary><span><BookOpen size={16}/> Profession tracker</span><ChevronDown size={16}/></summary><p className="side-muted">Optional skill tracking. Progress is saved per character in this browser.</p>
       <div className="profession-inputs">{visibleSkills.map(prof=>{const skill=Number(currentSkills[prof]??current.professions?.find(p=>p.name===prof)?.skill??0),info=rankInfo(skill);return <label key={prof}><span>{prof}<small>{info.rank} · {skill}/300</small></span><input type="number" min="0" max="300" value={skill} onChange={e=>setSkill(prof,e.target.value)}/></label>})}</div>
