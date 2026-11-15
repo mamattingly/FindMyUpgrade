@@ -232,7 +232,7 @@ def _parse_wowhead_item_page(page, item_id):
     for tag in soup(["script", "style", "noscript"]):
         tag.decompose()
     lines = [str(x).strip() for x in soup.stripped_strings if str(x).strip()]
-    starts = [i for i, line in enumerate(lines) if re.match(r"Item Level\\s+\\d+", line, re.I)]
+    starts = [i for i, line in enumerate(lines) if re.match(r"Item Level\s+\d+", line, re.I)]
     if not starts:
         return None
     start = starts[-1]
@@ -240,14 +240,14 @@ def _parse_wowhead_item_page(page, item_id):
     section_text = " ".join(section)
     heading = soup.find("h1")
     name = heading.get_text(" ", strip=True) if heading else None
-    level_match = re.search(r"Item Level\\s+(\\d+)", section_text, re.I)
-    required_match = re.search(r"Requires Level\\s+(\\d+)", section_text, re.I)
-    drop_match = re.search(r"Drop Chance:\\s*([\\d.]+)\\s*%", section_text, re.I)
-    source_match = re.search(r"Dropped by:\\s*(.*?)\\s+Drop Chance:", section_text, re.I)
-    armor_match = re.search(r"(\\d+)\\s+Armor\\b", section_text, re.I)
-    dps_match = re.search(r"\\(([\\d.]+)\\s+damage per second\\)", section_text, re.I)
+    level_match = re.search(r"Item Level\s+(\d+)", section_text, re.I)
+    required_match = re.search(r"Requires Level\s+(\d+)", section_text, re.I)
+    drop_match = re.search(r"Drop Chance:\s*([\d.]+)\s*%", section_text, re.I)
+    source_match = re.search(r"Dropped by:\s*(.*?)\s+Drop Chance:", section_text, re.I)
+    armor_match = re.search(r"(\d+)\s+Armor\b", section_text, re.I)
+    dps_match = re.search(r"\(([\d.]+)\s+damage per second\)", section_text, re.I)
     type_line = next((line for line in section[1:7] if re.search(
-        r"\\b(Head|Neck|Shoulder|Back|Chest|Robe|Shirt|Wrist|Hands|Waist|Legs|Feet|Finger|Trinket|Two-Hand|One-Hand|Main Hand|Off Hand|Held In Off-hand|Ranged)\\b",
+        r"\b(Head|Neck|Shoulder|Back|Chest|Robe|Shirt|Wrist|Hands|Waist|Legs|Feet|Finger|Trinket|Two-Hand|One-Hand|Main Hand|Off Hand|Held In Off-hand|Ranged)\b",
         line, re.I)), "")
     low_type = type_line.casefold()
     if "two-hand" in low_type or "two hand" in low_type:
@@ -281,25 +281,25 @@ def _parse_wowhead_item_page(page, item_id):
     subclass = next((x.title() for x in weapon_tokens + armor_tokens if x in low_type), "Miscellaneous")
     stats = []
     stat_patterns = [
-        ("Stamina", r"\\+([\\d.]+)\\s+Stamina\\b"),
-        ("Intellect", r"\\+([\\d.]+)\\s+Intellect\\b"),
-        ("Spirit", r"\\+([\\d.]+)\\s+Spirit\\b"),
-        ("Strength", r"\\+([\\d.]+)\\s+Strength\\b"),
-        ("Agility", r"\\+([\\d.]+)\\s+Agility\\b"),
-        ("Attack Power", r"\\+([\\d.]+)\\s+Attack Power\\b"),
-        ("Spell Damage", r"\\+([\\d.]+)\\s+Spell Damage\\b"),
-        ("Spell Healing", r"\\+([\\d.]+)\\s+Healing\\b"),
-        ("Mana per 5 sec", r"Restores\\s+([\\d.]+)\\s+mana per 5 sec"),
+        ("Stamina", r"\+([\d.]+)\s+Stamina\b"),
+        ("Intellect", r"\+([\d.]+)\s+Intellect\b"),
+        ("Spirit", r"\+([\d.]+)\s+Spirit\b"),
+        ("Strength", r"\+([\d.]+)\s+Strength\b"),
+        ("Agility", r"\+([\d.]+)\s+Agility\b"),
+        ("Attack Power", r"\+([\d.]+)\s+Attack Power\b"),
+        ("Spell Damage", r"\+([\d.]+)\s+Spell Damage\b"),
+        ("Spell Healing", r"\+([\d.]+)\s+Healing\b"),
+        ("Mana per 5 sec", r"Restores\s+([\d.]+)\s+mana per 5 sec"),
     ]
     for stat_name, pattern in stat_patterns:
         match = re.search(pattern, section_text, re.I)
         if match:
             stats.append({"name": stat_name, "value": float(match.group(1))})
     for pattern, stat_name in [
-        (r"Increases damage and healing done by magical spells and effects by up to\\s+([\\d.]+)", "Spell Healing"),
-        (r"Increases healing done by spells and effects by up to\\s+([\\d.]+)", "Spell Healing"),
-        (r"Increases damage done by spells and effects by up to\\s+([\\d.]+)", "Spell Damage"),
-        (r"Improves your chance to get a critical strike by\\s+([\\d.]+)%", "Spell Critical Strike"),
+        (r"Increases damage and healing done by magical spells and effects by up to\s+([\d.]+)", "Spell Healing"),
+        (r"Increases healing done by spells and effects by up to\s+([\d.]+)", "Spell Healing"),
+        (r"Increases damage done by spells and effects by up to\s+([\d.]+)", "Spell Damage"),
+        (r"Improves your chance to get a critical strike by\s+([\d.]+)%", "Spell Critical Strike"),
     ]:
         match = re.search(pattern, section_text, re.I)
         if match:
@@ -308,7 +308,7 @@ def _parse_wowhead_item_page(page, item_id):
         "id": int(item_id), "name": name, "required_level": int(required_match.group(1)) if required_match else 0,
         "inventory_type": inventory, "item_class": item_class, "item_subclass": subclass,
         "item_level": int(level_match.group(1)) if level_match else None,
-        "stats": stats, "stats_display": [x for x in section if re.match(r"^\\+|^Equip:", x)],
+        "stats": stats, "stats_display": [x for x in section if re.match(r"^\+|^Equip:", x)],
         "armor": int(armor_match.group(1)) if armor_match else 0,
         "weapon_dps": float(dps_match.group(1)) if dps_match else 0,
         "drop_chance": float(drop_match.group(1)) if drop_match else None,
@@ -343,6 +343,7 @@ async def _static_item_data(client, token, region, item_id, semaphore):
             response = await client.get(url,
                 params={"namespace": f"static-forever-{region}", "locale": REGION_LOCALES[region]},
                 headers={"Authorization": f"Bearer {token}"}, timeout=8)
+            blizzard_result = None
             if response.status_code == 200:
                 data = response.json()
                 preview = data.get("preview_item") or {}
@@ -364,7 +365,7 @@ async def _static_item_data(client, token, region, item_id, semaphore):
                 armor = preview.get("armor") or data.get("armor") or {}
                 weapon = preview.get("weapon") or data.get("weapon") or {}
                 dps = weapon.get("dps") or {}
-                result = {
+                blizzard_result = {
                     "id": int(item_id), "name": data.get("name"),
                     "required_level": data.get("required_level"),
                     "inventory_type": _api_name(data.get("inventory_type")),
@@ -375,18 +376,36 @@ async def _static_item_data(client, token, region, item_id, semaphore):
                     "data_url": f"https://www.wowhead.com/forever/item={int(item_id)}",
                     "data_source": "Blizzard",
                 }
-                if result.get("name") and (result.get("stats") or result.get("armor") or result.get("weapon_dps")):
-                    ITEM_CACHE[cache_key] = result
-                    return result
-            # Blizzard's Forever static namespace does not contain every
-            # Classic-derived item. Fall back to TheWoWDB's public Forever
-            # item endpoint, which publishes current client item records.
+            twdb_result = None
             twdb = await client.get(f"https://thewowdb.com/api/v1/forever/item/{int(item_id)}",
                 headers={"User-Agent": "WoWForeverDungeonAdvisor/0.5 (+https://github.com/mamattingly/FindMyUpgrade)",
                          "Accept": "application/json"}, timeout=8)
             if twdb.status_code == 200:
-                result = _normalise_thewowdb_item(twdb.json(), item_id)
-                if result.get("name"):
+                candidate = _normalise_thewowdb_item(twdb.json(), item_id)
+                if candidate.get("name"):
+                    twdb_result = candidate
+            # Wowhead's Forever item pages expose the current tooltip and the
+            # recorded drop chance/source for the actual Forever version.
+            wowhead = await _wowhead_item_data(client, item_id)
+            wowhead_result = wowhead if wowhead.get("parsed") else None
+            result = wowhead_result or twdb_result or blizzard_result
+            if result:
+                # Prefer structured Blizzard/TheWoWDB fields when available,
+                # while retaining Wowhead's per-item drop chance and source.
+                for candidate in (twdb_result, blizzard_result):
+                    if not candidate:
+                        continue
+                    for key in ("name", "required_level", "inventory_type", "item_class",
+                                "item_subclass", "item_level", "stats", "stats_display",
+                                "armor", "weapon_dps"):
+                        if candidate.get(key) not in (None, "", [], 0):
+                            result[key] = candidate[key]
+                if wowhead_result:
+                    result["drop_chance"] = wowhead_result.get("drop_chance")
+                    result["drop_source_name"] = wowhead_result.get("drop_source_name")
+                    result["data_url"] = wowhead_result.get("data_url")
+                    result["data_source"] = "Wowhead Forever"
+                if result.get("name") and (result.get("stats") or result.get("armor") or result.get("weapon_dps")):
                     ITEM_CACHE[cache_key] = result
                     return result
             ITEM_CACHE[cache_key] = None
