@@ -197,6 +197,10 @@ jobs:
               "classic/meta/armor/18/21024.json",
               "live/viewer/viewer.min.js",
               "live/meta/armor/3/20715.json",
+              "live/meta/item/5554.json",
+              "live/meta/charactercustomization/7.json",
+              "classic/mo3/143601.mo3",
+              "live/mo3/143601.mo3",
           ]
           model_asset_checks = []
           for asset in model_asset_paths:
