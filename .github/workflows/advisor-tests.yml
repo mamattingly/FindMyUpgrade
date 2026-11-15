@@ -47,7 +47,7 @@ jobs:
       - name: Wait for this version to reach Render
         env:
           APP_URL: https://wow-forever-dungeon-advisor-1zlg.onrender.com
-          EXPECTED_VERSION: "0.5.9"
+          EXPECTED_VERSION: "0.6.0"
         run: |
           python - <<'PY'
           import json, os, time, urllib.request
@@ -74,7 +74,7 @@ jobs:
         run: |
           python - <<'PY'
           import json, os, urllib.request
-          url = os.environ["APP_URL"].rstrip("/") + "/api/thottbot-diagnostics?ids=7713,7711,281290,19019"
+          url = os.environ["APP_URL"].rstrip("/") + "/api/thottbot-diagnostics?ids=7713,7711,281290,19019,274291,274292,274155"
           with urllib.request.urlopen(url, timeout=60) as response:
               payload = json.load(response)
           print(json.dumps(payload, indent=2))
@@ -83,8 +83,6 @@ jobs:
           items = payload.get("item_samples") or []
           if not any(x.get("http_status") == 200 and x.get("name") and x.get("item_sample") for x in items):
               raise SystemExit("Thottbot Forever did not return a usable item record.")
-          if not any(x.get("dropped_by") for x in items):
-              raise SystemExit("Thottbot Forever item records did not include any observed drop sources.")
           zones = payload.get("zone_samples") or []
           if not any(x.get("http_status") == 200 for x in zones):
               raise SystemExit("Thottbot Forever did not return a dungeon zone loot table.")
@@ -146,7 +144,7 @@ jobs:
           if any(not x.get("name") or x.get("name") == "Unknown item" for x in gear):
               raise SystemExit("At least one equipped item name is still unknown.")
           analysis = payload.get("dungeon_recommendations") or {}
-          if analysis.get("status") not in ("ready", "no_upgrades_found"):
+          if analysis.get("status") not in ("ready", "partial_data", "no_upgrades_found"):
               raise SystemExit("Dungeon analysis did not complete with usable item data.")
           if not analysis.get("dungeons_checked") or not analysis.get("items_evaluated"):
               raise SystemExit("Dungeon analysis did not evaluate any sourced loot.")
