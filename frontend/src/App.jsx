@@ -59,6 +59,10 @@ export default function App(){
  const [showAllSkills,setShowAllSkills]=useState(false);
  const [upgradeStats,setUpgradeStats]=useState(()=>read("wow-forever-upgrade-stat-preferences",[]));
  const [hoverPreview,setHoverPreview]=useState(null);
+ const [plannerSlot,setPlannerSlot]=useState("");
+ const [plannerItemId,setPlannerItemId]=useState("");
+ const [plannedItems,setPlannedItems]=useState([]);
+
  const [hoverTooltip,setHoverTooltip]=useState(null);
  useEffect(()=>localStorage.setItem(KEY,JSON.stringify(profiles)),[profiles]);
  useEffect(()=>localStorage.setItem(REGION_KEY,region),[region]);
@@ -76,6 +80,26 @@ export default function App(){
  const farmRanking=rankFarmDungeons(eligibleRankings,characterRuns,goals);
  const rec=baseRec?{...baseRec,rankings:farmRanking.rankings,recommended:farmRanking.rankings[0]||null}:null;
  const best=rec?.recommended;
+ const plannerUpgrades=(baseRec?.rankings||[]).flatMap(d=>(d.all_upgrades||d.upgrades||[]).map(u=>({...u,dungeon:d.name})));
+ const plannerSlots=[...new Set(plannerUpgrades.map(u=>u.slot).filter(Boolean))].sort();
+ const plannerChoices=plannerUpgrades.filter(u=>u.slot===plannerSlot);
+ const plannedStats=(()=>{
+  const totals={};
+  const add=(raw,mult=1)=>normalizeTooltipStats(raw||[]).forEach(s=>{totals[s.name]=(totals[s.name]||0)+s.value*mult});
+  gear.forEach(g=>add(g.stats));
+  plannedItems.forEach(u=>{(u.equipped_items||[]).forEach(old=>add(old.stats,-1));add(u.stat_values?.length?u.stat_values:u.stats)});
+  return Object.entries(totals).filter(([,v])=>Math.abs(v)>.001).sort((x,y)=>Math.abs(y[1])-Math.abs(x[1]));
+ })();
+ async function addPlannerItem(){
+  const item=plannerChoices.find(x=>String(x.item_id)===String(plannerItemId));
+  if(!item)return;
+  let appearance={};
+  try{const response=await fetch("/api/item-appearance/"+encodeURIComponent(item.item_id));if(response.ok)appearance=await response.json()}catch{}
+  setPlannedItems(old=>[...old.filter(x=>x.slot!==item.slot),{...item,...(appearance?.has_appearance?appearance:{})}]);
+  setHoverPreview(null);
+ }
+ function removePlannerItem(slot){setPlannedItems(old=>old.filter(x=>x.slot!==slot))}
+
  async function previewUpgrade(item){
   setHoverPreview({...item,loading:true});
   try{
@@ -167,6 +191,17 @@ export default function App(){
     <div className="character-stage-art"><div className="stage-orbit stage-orbit-one"/><div className="stage-orbit stage-orbit-two"/><span className="stage-caption">ARMORY CHARACTER</span><div className="character-model"><CharacterModel modelData={current.model_data} armoryRenderUrl={current.armory_render_url} name={current.name} previewItem={hoverPreview}/></div><span className="stage-model-label">DRAG TO ROTATE</span></div>
     <div className="char-main"><div className="kicker">YOUR CHARACTER</div><div className="char-name">{current.name}</div><div className="char-sub">{current.race} {current.class} <span>·</span> Level {current.level} <span>·</span> {current.spec||"Specialization unavailable"}</div></div>
     <div className="character-actions"><button className="refresh-character" disabled={busy} onClick={()=>scan(current.name,String(current.region||region).toLowerCase())}>{busy?"Syncing…":"Refresh data"}</button><button className="native-export" title={canExportWmvCharacter(current.model_data)?"Download a native .chr file for WoW Model Viewer 1.1. The viewer runs separately and uses your installed Forever client.":"Refresh this character after the native model export update to retrieve exact customization IDs and all gear appearances."} disabled={!canExportWmvCharacter(current.model_data)} onClick={()=>{try{const filename=downloadWmvCharacter(current.model_data,current.name,current.class);setMessage(`Downloaded ${filename}. Open it in WoW Model Viewer 1.1 with the Forever client selected.`)}catch(error){setMessage(error?.message||"Could not export the character model.")}}}><Download size={13}/> Export .chr</button><a className="armory-link" href={current.url} target="_blank" rel="noreferrer">Armory <ExternalLink size={13}/></a></div>
+   </section>
+   <section className="planner-workbench" aria-label="Gear set planner">
+    <div className="planner-heading"><div><div className="kicker">BUILD YOUR NEXT LOADOUT</div><h2>Gear planner</h2><p>Try multiple dungeon upgrades together and see the combined stat changes before you commit to a run.</p></div><span className="planner-count">{plannedItems.length} upgrades selected</span></div>
+    <div className="planner-grid">
+     <div className="planner-model-panel"><div className="planner-model-title">LIVE CHARACTER PREVIEW <span>PROPOSED LOADOUT</span></div><div className="planner-model-view"><CharacterModel modelData={current.model_data} armoryRenderUrl={current.armory_render_url} name={current.name+" proposed gear"} previewItems={plannedItems}/></div><div className="planner-model-foot">Your Armory appearance with selected item appearances applied where available.</div></div>
+     <div className="planner-controls">
+      <div className="planner-add"><label>GEAR SLOT<select value={plannerSlot} onChange={e=>{setPlannerSlot(e.target.value);setPlannerItemId("");}}><option value="">Choose a slot</option>{plannerSlots.map(slot=><option key={slot} value={slot}>{slot}</option>)}</select></label><label>ITEM<select value={plannerItemId} onChange={e=>setPlannerItemId(e.target.value)} disabled={!plannerSlot}><option value="">Choose an upgrade</option>{plannerChoices.map(item=><option key={item.item_id+"-"+item.boss} value={item.item_id}>{item.name} · {item.dungeon}</option>)}</select></label><button type="button" disabled={!plannerItemId} onClick={addPlannerItem}>Add to build</button></div>
+      <div className="planned-list"><div className="planner-subhead">YOUR PROPOSED GEAR SET</div>{plannedItems.length?plannedItems.map(item=><div className="planned-item" key={item.slot}><ItemIcon src={item.icon_url} name={item.name} size="small"/><span><b>{item.name}</b><small>{item.slot} · {item.dungeon}</small></span><button type="button" onClick={()=>removePlannerItem(item.slot)} aria-label={"Remove "+item.name}>Remove</button></div>):<p className="planner-empty">No changes yet. Choose an item above to start building a set.</p>}</div>
+      <div className="planner-stats"><div className="planner-subhead">PROJECTED EQUIPPED STATS</div><div className="planner-stat-head"><span>STAT</span><span>WITH BUILD</span></div>{plannedStats.slice(0,12).map(([stat,value])=><div className="planner-stat" key={stat}><span>{stat}</span><b>{Number.isInteger(value)?value:value.toFixed(1)}</b></div>)}</div>
+     </div>
+    </div>
    </section>
    <section className="recommendation-layout">
     <div className="primary-column">
