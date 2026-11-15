@@ -43,11 +43,13 @@ export default function CharacterModel({modelData,armoryRenderUrl,name}){
  const [status,setStatus]=useState("loading");
  const [detail,setDetail]=useState("");
  const [loadedCount,setLoadedCount]=useState(0);
+ const [showFallback,setShowFallback]=useState(true);
  useEffect(()=>{
-  let disposed=false,viewer=null;
+  let disposed=false,viewer=null,stabilityTimer=null,observer=null,contextLostHandler=null;
   const host=document.getElementById(id);
   if(!host)return;
   host.innerHTML="";
+  setShowFallback(true);
   async function boot(){
    if(!modelData||!Number(modelData.race)||!Number.isInteger(Number(modelData.gender))){
     setStatus("missing");setDetail("Refresh character data to retrieve the Armory appearance.");return;
@@ -84,7 +86,24 @@ export default function CharacterModel({modelData,armoryRenderUrl,name}){
      throw new Error("The 3D viewer did not produce a renderable character. The official Armory render is shown instead.");
     }
     setLoadedCount(modelData.items.length);
-    setStatus("ready");setDetail("");
+    // Keep the official Armory render visible until the WebGL canvas has
+    // remained mounted for a few seconds. Failed loads can briefly create
+    // a canvas before tearing it down.
+    const canvas=host.querySelector("canvas");
+    contextLostHandler=(event)=>{event.preventDefault();if(!disposed){setStatus("error");setDetail("The 3D viewer lost its graphics context. Showing the official Armory render.");setShowFallback(true);}};
+    canvas.addEventListener("webglcontextlost",contextLostHandler,{once:true});
+    observer=new MutationObserver(()=>{
+     if(!disposed&&!host.querySelector("canvas")){
+      clearTimeout(stabilityTimer);
+      setStatus("error");setDetail("The 3D model stopped rendering. Showing the official Armory render.");setShowFallback(true);
+     }
+    });
+    observer.observe(host,{childList:true,subtree:true});
+    stabilityTimer=setTimeout(()=>{
+     if(disposed)return;
+     if(host.querySelector("canvas")){setStatus("ready");setDetail("");setShowFallback(false);}
+     else{setStatus("error");setDetail("The 3D model did not remain visible. Showing the official Armory render.");setShowFallback(true);}
+    },3500);
    }catch(error){
     if(disposed)return;
     setStatus("error");
@@ -92,11 +111,11 @@ export default function CharacterModel({modelData,armoryRenderUrl,name}){
    }
   }
   boot();
-  return ()=>{disposed=true;try{viewer?.destroy?.();}catch{}host.innerHTML="";};
+  return ()=>{disposed=true;clearTimeout(stabilityTimer);observer?.disconnect();try{const canvas=host.querySelector("canvas");if(canvas&&contextLostHandler)canvas.removeEventListener("webglcontextlost",contextLostHandler);viewer?.destroy?.();}catch{}host.innerHTML="";};
  },[id,modelData]);
  return <div className="character-model-canvas">
   <div id={id} className="wow-armory-viewer" aria-label={name?name+" 3D Armory character model":"3D Armory character model"}/>
-  {status!=="ready"&&armoryRenderUrl&&<div className="armory-render-fallback"><img src={armoryRenderUrl.startsWith("http")?armoryRenderUrl:"https://"+armoryRenderUrl} alt={name?name+" official Armory character render":"Official Armory character render"}/></div>}
+  {showFallback&&armoryRenderUrl&&<div className="armory-render-fallback"><img src={armoryRenderUrl.startsWith("http")?armoryRenderUrl:"https://"+armoryRenderUrl} alt={name?name+" official Armory character render":"Official Armory character render"}/></div>}
   {status!=="ready"&&<div className="model-status" role="status">{status==="loading"?"Loading Armory model…":detail}</div>}
   {status==="ready"&&<span className="model-hint">3D ARMORY MODEL · DRAG TO ROTATE</span>}
   {status==="ready"&&<span className="model-gear-count">{loadedCount} / {modelData?.equipped_visual_item_count||loadedCount} gear pieces rendered</span>}
