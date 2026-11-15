@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from typing import Literal
 from backend.recommendations import DUNGEONS, recommend_dungeons
 
-app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.5.9")
+app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.6.0")
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "frontend" / "dist"
 REGION_LOCALES = {"us": "en_US", "eu": "en_GB", "kr": "ko_KR", "tw": "zh_TW"}
@@ -733,6 +733,9 @@ async def thottbot_diagnostics(ids: str = "7713,7711,281290,19019,274291,274292,
                     "response_keys": sorted((zone_payload or {}).keys()),
                     "data_keys": sorted(zone_data.keys()) if isinstance(zone_data, dict) else [],
                     "bosses": (zone_data.get("bosses") or [])[:5] if isinstance(zone_data, dict) else [],
+                    "npcs_count": len(zone_data.get("npcs") or []) if isinstance(zone_data, dict) else None,
+                    "npc_sample": (zone_data.get("npcs") or [])[:5] if isinstance(zone_data, dict) else [],
+                    "loot_count": len(zone_data.get("loot") or zone_data.get("lootTable") or []) if isinstance(zone_data, dict) else None,
                     "loot_sample": (zone_data.get("loot") or zone_data.get("lootTable") or [])[:8] if isinstance(zone_data, dict) else [],
                 })
         item_samples = []
@@ -745,7 +748,7 @@ async def thottbot_diagnostics(ids: str = "7713,7711,281290,19019,274291,274292,
                 "response_keys": sorted(data.keys()) if isinstance(data, dict) else [],
                 "item_keys": sorted(item.keys()) if isinstance(item, dict) else [],
                 "name": item.get("name") if isinstance(item, dict) else None,
-                "item_sample": {k: item.get(k) for k in ("itemLevel", "requiredLevel", "inventoryType", "itemClass", "itemSubclass", "stats", "damageMin", "damageMax", "speedMs") if isinstance(item, dict) and k in item},
+                "item_sample": {k: item.get(k) for k in ("itemLevel", "requiredLevel", "inventoryType", "itemClass", "itemSubclass", "itemSpec", "usableBy", "source", "quality", "armor", "stats", "damageMin", "damageMax", "speedMs") if isinstance(item, dict) and k in item},
                 "dropped_by": (data.get("droppedBy") or [])[:5] if isinstance(data, dict) else [],
             })
         return {
