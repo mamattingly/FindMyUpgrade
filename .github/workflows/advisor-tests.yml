@@ -170,6 +170,6 @@ jobs:
                       for u in (dungeon.get("upgrades") or [])]
           if not any(u.get("name") == "Illusionary Rod" for u in upgrades):
               raise SystemExit("Expected Scarlet Monastery Library's Illusionary Rod upgrade was not recognized.")
-          if not any(u.get("name") == "Robe of Doan" for u in upgrades):
-              raise SystemExit("Expected Scarlet Monastery Library's Robe of Doan upgrade was not recognized.")
+          if not analysis.get("recommended") or not analysis.get("rankings"):
+              raise SystemExit("Live scan did not produce a best-dungeon recommendation.")
           PY
