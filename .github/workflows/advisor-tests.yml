@@ -186,6 +186,33 @@ jobs:
               customization = json.load(response)
           if not customization:
               raise SystemExit("Classic race/gender customization metadata is empty.")
+          # Check the exact metadata files needed for the equipped model.
+          # Slot 21 is the model-viewer's main-hand slot and uses meta/item/.
+          model_asset_paths = [
+              "classic/meta/armor/3/20715.json",
+              "classic/meta/armor/4/8370.json",
+              "classic/meta/armor/6/11172.json",
+              "classic/meta/armor/9/3382.json",
+              "classic/meta/item/5554.json",
+              "classic/meta/armor/18/21024.json",
+              "live/viewer/viewer.min.js",
+              "live/meta/armor/3/20715.json",
+          ]
+          model_asset_checks = []
+          for asset in model_asset_paths:
+              asset_url = os.environ["APP_URL"].rstrip("/") + "/api/modelviewer/" + asset
+              try:
+                  with urllib.request.urlopen(asset_url, timeout=35) as response:
+                      data = response.read()
+                      model_asset_checks.append({
+                          "path": asset, "status": response.status,
+                          "bytes": len(data), "content_type": response.headers.get("Content-Type")
+                      })
+              except urllib.error.HTTPError as exc:
+                  model_asset_checks.append({"path": asset, "status": exc.code})
+              except Exception as exc:
+                  model_asset_checks.append({"path": asset, "error": type(exc).__name__})
+          print("Model asset path probes:", json.dumps(model_asset_checks, indent=2))
           gear = payload.get("equipped_gear") or []
           if len(gear) < 10:
               raise SystemExit("Live scan did not return the expected equipped gear.")
