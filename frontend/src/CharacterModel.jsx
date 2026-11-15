@@ -76,10 +76,12 @@ export default function CharacterModel({modelData,armoryRenderUrl,name}){
     viewer=await library.generateModels(1.45,"#"+id,character,"classic");
     viewer?.setDistance?.(1.15);
     if(disposed){viewer?.destroy?.();return;}
-    const actorCount=viewer?.renderer?.actors?.length||0;
-    if(actorCount<1){
+    // The library's public API does not expose renderer.actors. The old
+    // check inspected an undocumented internal field and rejected valid models.
+    // Confirm the documented model handle and an actual canvas instead.
+    if(!viewer||typeof viewer.setDistance!=="function"||!host.querySelector("canvas")){
      viewer?.destroy?.();
-     throw new Error("The live WoW model viewer did not create a character model. The official Armory render is shown instead.");
+     throw new Error("The 3D viewer did not produce a renderable character. The official Armory render is shown instead.");
     }
     setLoadedCount(modelData.items.length);
     setStatus("ready");setDetail("");
