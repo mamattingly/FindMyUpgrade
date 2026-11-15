@@ -82,3 +82,25 @@ def test_wowhead_forever_item_parser_extracts_stats_and_drop_chance():
     assert item["drop_source_name"] == "Arcanist Doan"
     assert item["drop_chance"] == 30.62
     assert {x["name"] for x in item["stats"]} >= {"Stamina", "Intellect", "Spirit", "Spell Healing"}
+
+
+def test_two_hander_must_replace_both_mainhand_and_offhand(monkeypatch):
+    monkeypatch.setattr(rec, "DUNGEONS", [{
+        "name": "Test Crypt", "min_level": 30, "max_level": 40, "faction": None,
+        "source_url": "https://example.invalid/test-crypt",
+        "bosses": [{"boss": "Test Boss", "items": [2001]}],
+    }])
+    character = {"level": 34, "class": "Priest", "faction": "Alliance"}
+    equipped = [
+        {"slot": "Main Hand", "stats": [{"name": "Intellect", "value": 10}]},
+        {"slot": "Off Hand", "stats": [{"name": "Intellect", "value": 10}]},
+    ]
+    item_data = {
+        2001: {"name": "Staff", "inventory_type": "Two-Hand", "item_class": "Weapon",
+               "item_subclass": "Staff", "required_level": 30, "item_level": 35,
+               "stats": [{"name": "Intellect", "value": 15}],
+               "drop_chance": 25, "drop_source_name": "Test Boss"},
+    }
+    result = rec.recommend_dungeons(character, equipped, item_data)
+    assert result["status"] == "drop_rates_unavailable"
+    assert result["recommended"] is None
