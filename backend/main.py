@@ -59,8 +59,6 @@ async def _get_page(client: httpx.AsyncClient, url: str):
         response = await client.get(url)
     except httpx.RequestError as exc:
         raise HTTPException(502, "Blizzard's Armory could not be reached. Please try again.") from exc
-    if response.status_code >= 500:
-        raise HTTPException(502, f"Blizzard's Armory returned HTTP {response.status_code}. Please try again later.")
     return response
 
 @app.post("/api/scan")
@@ -76,6 +74,8 @@ async def scan(req: ScanRequest):
     async with httpx.AsyncClient(timeout=20, follow_redirects=True, headers=headers) as client:
         # The Armory search model is the authoritative way to confirm a name match.
         search_response = await _get_page(client, f"{base}?q={quote(requested_name)}")
+        if search_response.status_code >= 500:
+            raise HTTPException(502, f"Blizzard's Armory search returned HTTP {search_response.status_code}. Please try again later.")
         if search_response.status_code >= 400:
             raise HTTPException(502, f"Blizzard's Armory search returned HTTP {search_response.status_code}.")
         matches = _search_characters(search_response.text)
