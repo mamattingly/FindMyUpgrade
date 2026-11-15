@@ -1,64 +1,100 @@
 import {useEffect,useMemo,useState} from "react";
+import {Search,ChevronDown,ExternalLink,Shield,Compass,BookOpen,Sparkles,Target} from "lucide-react";
 const KEY="wow-forever-advisor-profiles", REGION_KEY="wow-forever-advisor-region", SKILL_KEY="wow-forever-profession-skills";
+const GOALS_KEY="wow-forever-farming-goals";
 const NAMES=["Alchemy","Blacksmithing","Enchanting","Engineering","Herbalism","Leatherworking","Mining","Skinning","Tailoring","Cooking","First Aid","Fishing"];
-const TYPES={Alchemy:"Crafting",Blacksmithing:"Crafting",Enchanting:"Crafting",Engineering:"Crafting",Herbalism:"Gathering",Leatherworking:"Crafting",Mining:"Gathering",Skinning:"Gathering",Tailoring:"Crafting",Cooking:"Secondary","First Aid":"Secondary",Fishing:"Secondary"};
 const SOURCES={Alchemy:"https://www.60.tools/guides/alchemy-leveling-guide",Blacksmithing:"https://www.60.tools/guides/blacksmithing-leveling-guide",Enchanting:"https://www.60.tools/guides/enchanting-leveling-guide",Engineering:"https://www.60.tools/guides/engineering-leveling-guide",Herbalism:"https://www.60.tools/guides/herbalism-leveling-guide",Leatherworking:"https://www.60.tools/guides/leatherworking-leveling-guide",Mining:"https://www.60.tools/guides/mining-leveling-guide",Skinning:"https://www.60.tools/guides/skinning-leveling-guide",Tailoring:"https://www.60.tools/guides/tailoring-leveling-guide",Cooking:"https://www.60.tools/guides/cooking-leveling-guide","First Aid":"https://www.60.tools/guides/first-aid-leveling-guide",Fishing:"https://www.60.tools/guides/fishing-leveling-guide"};
 const read=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key)||JSON.stringify(fallback))}catch{return fallback}};
-const validProfiles=()=>read(KEY,[]).filter(p=>p&&p.name&&p.class&&p.class!=="Unknown"&&Number.isFinite(p.level));
-function rankInfo(skill){if(skill>=300)return {rank:"Artisan",next:null,cap:300};if(skill>=200)return {rank:"Expert",next:300,cap:300};if(skill>=125)return {rank:"Expert",next:200,cap:225,train:true};if(skill>=75)return {rank:"Journeyman",next:125,cap:150,train:true};if(skill>=50)return {rank:"Journeyman",next:75,cap:150};return {rank:"Apprentice",next:50,cap:75};}
+const iconFallback="https://wow.zamimg.com/images/wow/icons/large/inv_misc_questionmark.jpg";
+function rankInfo(skill){if(skill>=300)return {rank:"Artisan",next:null};if(skill>=200)return {rank:"Expert",next:300};if(skill>=125)return {rank:"Expert",next:200};if(skill>=75)return {rank:"Journeyman",next:125};if(skill>=50)return {rank:"Journeyman",next:75};return {rank:"Apprentice",next:50};}
+function ItemIcon({src,name,size="large"}){return <span className={"itemicon "+size}><img src={src||iconFallback} alt={name+" icon"} loading="lazy" onError={e=>{e.currentTarget.src=iconFallback}}/></span>}
+function StatLine({stats}){if(!stats?.length)return null;return <div className="statline">{stats.map((s,i)=><span key={i}>{s}</span>)}</div>}
 export default function App(){
- const [profiles,setProfiles]=useState(validProfiles);
+ const [profiles,setProfiles]=useState(()=>read(KEY,[]).filter(p=>p&&p.name&&p.class&&p.class!=="Unknown"&&Number.isFinite(p.level)));
  const [region,setRegion]=useState(()=>localStorage.getItem(REGION_KEY)||"us");
  const [name,setName]=useState(""),[busy,setBusy]=useState(false),[message,setMessage]=useState(""),[active,setActive]=useState(0);
  const [skills,setSkills]=useState(()=>read(SKILL_KEY,{}));
- const [professionFilter,setProfessionFilter]=useState("All");
+ const [goals,setGoals]=useState(()=>read(GOALS_KEY,{gear:true,tailoring:false,enchanting:false}));
+ const [showAllSkills,setShowAllSkills]=useState(false);
  useEffect(()=>localStorage.setItem(KEY,JSON.stringify(profiles)),[profiles]);
  useEffect(()=>localStorage.setItem(REGION_KEY,region),[region]);
  useEffect(()=>localStorage.setItem(SKILL_KEY,JSON.stringify(skills)),[skills]);
- const current=profiles[active], skillKey=current?current.region+":"+current.name.toLowerCase():"";
- const currentSkills=skills[skillKey]||{};
+ useEffect(()=>localStorage.setItem(GOALS_KEY,JSON.stringify(goals)),[goals]);
+ const current=profiles[active],skillKey=current?current.region+":"+current.name.toLowerCase():"";
+ const currentSkills=skills[skillKey]||{},gear=useMemo(()=>current?.gear||[],[current]);
+ const rec=current?.recommendations,best=rec?.recommended;
  async function scan(){
-  if(name.trim().split(/\s+/).length!==2){setMessage("Enter the character's first name and surname.");return}
+  if(name.trim().split(/\s+/).length!==2){setMessage("Enter the character's first and last name.");return}
   setBusy(true);setMessage("");
   try{
    const r=await fetch("/api/scan",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({region,name:name.trim()})});
    const d=await r.json();if(!r.ok)throw new Error(d.detail||"Character lookup failed.");
    const profile={...d.character,id:crypto.randomUUID(),url:d.source_url,status:d.scan_status,scannedAt:new Date().toISOString(),gear:d.equipped_gear||[],professions:d.professions||[],apiStatus:d.api_status,recommendations:d.dungeon_recommendations||null};
    setProfiles(old=>[profile,...old.filter(p=>!(p.region===profile.region&&p.name?.toLowerCase()===profile.name.toLowerCase()))]);
-   setActive(0);setName("");setMessage(d.message);
+   setActive(0);setName("");setMessage("Character synced successfully.");
    if(profile.professions.length){const seed={};profile.professions.forEach(p=>seed[p.name]=Number(p.skill)||0);const k=profile.region+":"+profile.name.toLowerCase();setSkills(old=>({...old,[k]:{...seed,...(old[k]||{})}}))}
   }catch(e){setMessage(e.message||"Could not find that character.")}finally{setBusy(false)}
  }
  function setSkill(prof,value){const n=Math.max(0,Math.min(300,Number(value)||0));setSkills(old=>({...old,[skillKey]:{...(old[skillKey]||{}),[prof]:n}}))}
- const displayed=NAMES.filter(p=>professionFilter==="All"||TYPES[p]===professionFilter);
- const gear=useMemo(()=>current?.gear||[],[current]);
- return <main className="shell">
-  <header><div className="logo">⚔</div><div><b>FOREVER</b><small>DUNGEON ADVISOR</small></div><span className="free">FREE BUILD</span></header>
-  <section className="hero"><span className="eyebrow">LOOT SMARTER. RUN LESS.</span><h1>Find your next<br/><em>best upgrade.</em></h1><p>Analyze your character, plan dungeon farming, and keep every profession moving toward 300.</p>
-   <div className="scan"><label>FIND YOUR WOW FOREVER CHARACTER</label><div className="scanrow">
-    <select aria-label="Region" value={region} onChange={e=>setRegion(e.target.value)}><option value="us">United States</option><option value="eu">Europe</option><option value="kr">Korea</option><option value="tw">Taiwan</option></select>
-    <input value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&scan()} placeholder="First name + surname" autoComplete="off"/>
-    <button disabled={busy} onClick={scan}>{busy?"SEARCHING…":"FIND MY CHARACTER"}</button>
-   </div><small>Enter the exact two-part character name. Public profiles generally appear after level 10 and a logout.</small></div>
+ function toggleGoal(key){setGoals(old=>({...old,[key]:!old[key]}))}
+ const visibleSkills=showAllSkills?NAMES:["Tailoring","Enchanting"];
+ return <main className="app-shell">
+  <header className="topbar">
+   <a className="brand" href="#"><span className="brand-mark">F</span><span><b>FOREVER</b><small>DUNGEON ADVISOR</small></span></a>
+   <div className="top-actions">{profiles.length>0?<select aria-label="Saved characters" value={active} onChange={e=>setActive(Number(e.target.value))}>{profiles.map((p,i)=><option key={p.id||i} value={i}>{p.name} · {p.class} {p.level}</option>)}</select>:<span className="top-caption">WOW FOREVER · CHARACTER PLANNER</span>}</div>
+  </header>
+  <section className="search-hero">
+   <div><div className="kicker">YOUR NEXT RUN, OPTIMIZED</div><h1>Make every dungeon<br/><em>run count.</em></h1><p>Gear upgrades, profession materials, and smarter farming in one place.</p></div>
+   <form className="search-card" onSubmit={e=>{e.preventDefault();scan()}}>
+    <label htmlFor="character-name">CHARACTER</label>
+    <div className="search-controls"><select aria-label="Region" value={region} onChange={e=>setRegion(e.target.value)}><option value="us">US</option><option value="eu">EU</option><option value="kr">KR</option><option value="tw">TW</option></select><input id="character-name" value={name} onChange={e=>setName(e.target.value)} placeholder="First name + surname" autoComplete="off"/><button disabled={busy}><Search size={16}/>{busy?"Syncing":"Analyze"}</button></div>
+    <div className="search-foot"><span>Public Blizzard Armory profile</span><span>Saved locally on this device</span></div>
+   </form>
   </section>
   {message&&<div className="notice" role="status">{message}</div>}
-  <section className="grid"><article className="panel"><span className="eyebrow">CHARACTER ROSTER</span><h2>Profiles</h2>{profiles.length===0?<p className="muted">No verified characters saved yet.</p>:profiles.map((p,i)=><button className={"profile "+(i===active?"selected":"")} onClick={()=>setActive(i)} key={p.id}><b>{p.name}</b><small>{p.region} · {p.class} · Level {p.level}</small></button>)}</article>
-   <article className="panel"><span className="eyebrow">ACTIVE CHARACTER</span><h2>{current?.name||"Your character"}</h2>{current?<><div className="facts"><div><small>REGION</small><b>{current.region}</b></div><div><small>CLASS</small><b>{current.class}</b></div><div><small>LEVEL</small><b>{current.level}</b></div><div><small>FACTION</small><b>{current.faction||"—"}</b></div><div><small>RACE</small><b>{current.race||"—"}</b></div><div><small>SPEC</small><b>{current.spec||"Not exposed"}</b></div></div><p className="muted"><a href={current.url} target="_blank" rel="noreferrer">Open official Blizzard Armory profile ↗</a></p>
-    <div className="gearhead"><b>Equipped gear</b><span>{gear.length} slots returned</span></div>{gear.length?<div className="gearlist">{gear.map((g,i)=><div className="gearrow" key={g.id||i}><span>{g.slot}</span><b>{g.name}</b><small>{g.item_level?("iLvl "+g.item_level):"—"}</small></div>)}</div>:<p className="muted">No equipped items returned yet. Configure Blizzard API credentials in Render to enable character profile endpoints.</p>}
-   </>:<p className="muted">Enter your region and full character name to look up your public Armory profile.</p>}</article>
-  </section>
-  <section className="panel professions"><div className="sectiontop"><div><span className="eyebrow">PROFESSION PROGRESSION</span><h2>Level your professions</h2><p className="muted">Track each skill from 1–300, see the next training breakpoint, and open a WoW Forever-specific leveling reference. Progress is saved per character in this browser.</p></div><span className="skillcap">300 MAX SKILL</span></div>
-   {!current?<div className="empty"><b>Select or scan a character first</b><p>Skill values are editable and saved locally for each character.</p></div>:<><div className="filterrow"><span className="muted">Show</span><select value={professionFilter} onChange={e=>setProfessionFilter(e.target.value)}><option>All</option><option>Crafting</option><option>Gathering</option><option>Secondary</option></select><span className="muted">Two primary professions + all three secondary skills</span></div><div className="professiongrid">{displayed.map(prof=>{const skill=Number(currentSkills[prof]??current.professions?.find(p=>p.name===prof)?.skill??0),info=rankInfo(skill);return <div className="professioncard" key={prof}><div className="profline"><div><b>{prof}</b><small>{TYPES[prof]}</small></div><strong>{skill}<small> / 300</small></strong></div><div className="progress"><i style={{width:(skill/300*100)+"%"}}/></div><div className="profmeta"><span>{info.rank}</span><span>{skill>=300?"MAXED":info.next?("Next: "+info.next+" skill"):"Train Journeyman at 50"}</span></div><label className="skillinput">CURRENT SKILL<input type="number" min="0" max="300" value={skill} onChange={e=>setSkill(prof,e.target.value)}/></label><a className="guide" href={SOURCES[prof]} target="_blank" rel="noreferrer">Open {prof} leveling guide ↗</a></div>})}</div><p className="ranknote">Rank caps: Apprentice 75 · Journeyman 150 · Expert 225 · Artisan 300. Train new ranks at skill 50, 125 and 200; character-level requirements may also apply.</p></>}
-  </section>
-  <section className="panel recommendations"><span className="eyebrow">FARMING INTELLIGENCE</span><h2>Best dungeon right now</h2>
-   {!current?<div className="empty"><b>Scan a character to calculate upgrades</b><p>We'll compare their equipped stats against boss loot that their class can use and that is available at their current level.</p></div>
-   :!current.recommendations?<div className="empty"><b>Run a fresh character search</b><p>This saved profile predates dungeon analysis. Search for {current.name} again to calculate current dungeon upgrades.</p></div>
-   :(current.recommendations.status==="ready"||current.recommendations.status==="partial_data")&&current.recommendations.recommended?<><div className="bestdungeon"><div className="bestlabel">{current.recommendations.status==="partial_data"?"BEST POTENTIAL MATCH":"TOP MATCH"} · LEVEL {current.level} · {current.class}</div>{current.recommendations.status==="partial_data"?<p className="accessnote">Drop-chance coverage is incomplete. This ranking compares potential gear upgrades; it does not estimate how often they will drop.</p>:null}<h3>{current.recommendations.recommended.name}</h3><div className="dungeonmeta"><span>{current.recommendations.recommended.upgrade_slots} upgradeable slots</span><span>Best item: {current.recommendations.recommended.best_upgrade.name}</span></div>{current.recommendations.recommended.access_requirement?<p className="accessnote">Access requirement: {current.recommendations.recommended.access_requirement}</p>:null}<div className="upgradegrid">{current.recommendations.recommended.upgrades.map((u,i)=><div className="upgradeitem" key={u.item_id+"-"+u.slot}><div><small>{u.slot.toUpperCase()} · {u.boss}</small><b><a href={u.item_url} target="_blank" rel="noreferrer">{u.name} ↗</a></b>{u.stats?.length?<small className="upgradestats">{u.stats.join(" · ")}</small>:null}</div><span>{u.item_level?"iLvl "+u.item_level:"Potential upgrade"}{u.drop_chance?" · "+u.drop_chance+"% drop"+(u.drop_observed&&u.drop_encounters?" ("+u.drop_observed+"/"+u.drop_encounters+")":""):" · drop chance untracked"}</span></div>)}</div><p className="muted">This ranks first because its boss loot offers the strongest combined stat-weighted upgrades across {current.recommendations.recommended.upgrade_slots} gear slots.</p><a className="guide" href={current.recommendations.recommended.source_url} target="_blank" rel="noreferrer">Open sourced dungeon loot table ↗</a></div>
-    {current.recommendations.rankings.length>1?<div className="rankedlist"><h3>Other dungeons with upgrades</h3>{current.recommendations.rankings.slice(1).map((d,i)=><div className="rankedrow" key={d.name}><div><b>{i+2}. {d.name}</b><small>{d.upgrade_slots} upgradeable slots · best drop: {d.best_upgrade.name}</small></div><a href={d.source_url} target="_blank" rel="noreferrer">Loot ↗</a></div>)}</div>:null}
-    <p className="ranknote">Method: compares usable boss drops against your equipped gear using estimated class stat weights and Blizzard's Forever item stats. {current.recommendations.status==="ready"?"Expected stat-weighted upgrade value per full run, using verified item drop chances. No verified dungeon run times are available, so this is not an upgrades-per-hour prediction.":"Potential stat-weighted gear upgrades. Drop chances are missing for some items, so this is not an expected-value or upgrades-per-hour prediction."} Item/drop data: <a href="https://thottbot-forever.com" target="_blank" rel="noreferrer">Thottbot Forever</a>, <a href="https://forever.warcraftdb.com" target="_blank" rel="noreferrer">WarcraftDB</a>, and <a href="https://www.wowhead.com/forever" target="_blank" rel="noreferrer">Wowhead Forever</a>; item API fallback: <a href="https://thewowdb.com" target="_blank" rel="noreferrer">TheWoWDB</a>; dungeon loot mappings: <a href="https://github.com/ATTWoWAddon/AllTheThings" target="_blank" rel="noreferrer">AllTheThings</a>. Some drops and item data may be incomplete.{current.recommendations.catalog_truncated?" The candidate item list was capped for response speed.":""}</p>
-   </>
-   :<div className="empty"><b>{current.recommendations.status==="no_upgrades_found"?"No verified dungeon upgrade found":"Dungeon analysis could not complete"}</b><p>{current.recommendations.message}</p>{current.recommendations.items_requested? <p>Item data: {current.recommendations.items_evaluated||0} / {current.recommendations.items_requested} loaded.</p>:null}</div>}
-  </section>
-  <footer>WoW Forever Dungeon Advisor · Profiles and profession progress saved locally in this browser</footer>
+  {!current?<section className="welcome-panel"><div className="welcome-icon"><Compass size={25}/></div><h2>Start with your character</h2><p>Search your WoW Forever character to see equipped items, useful dungeon drops, and a farming plan shaped around your goals.</p></section>:<>
+   <section className="character-strip">
+    <div className="char-avatar">{(current.name||"?").split(" ").map(x=>x[0]).join("").slice(0,2).toUpperCase()}</div>
+    <div className="char-main"><div className="char-name">{current.name}</div><div className="char-sub">{current.race} {current.class} <span>·</span> Level {current.level} <span>·</span> {current.spec||"Specialization unavailable"}</div></div>
+    <a className="armory-link" href={current.url} target="_blank" rel="noreferrer">Armory <ExternalLink size={13}/></a>
+   </section>
+   <section className="goal-panel">
+    <div className="section-heading"><div><div className="kicker">FARMING PREFERENCES</div><h2>What matters on your next run?</h2></div><span className="optional-tag">Optional goals</span></div>
+    <div className="goal-options">
+     <button className={"goal-option "+(goals.gear?"active":"")} onClick={()=>toggleGoal("gear")}><span className="goal-check">{goals.gear?"✓":""}</span><Shield size={18}/><span><b>Gear upgrades</b><small>Improve equipped slots</small></span></button>
+     <button className={"goal-option "+(goals.tailoring?"active":"")} onClick={()=>toggleGoal("tailoring")}><span className="goal-check">{goals.tailoring?"✓":""}</span><Package size={18}/><span><b>Tailoring</b><small>Cloth & skill progress</small></span></button>
+     <button className={"goal-option "+(goals.enchanting?"active":"")} onClick={()=>toggleGoal("enchanting")}><span className="goal-check">{goals.enchanting?"✓":""}</span><Sparkles size={18}/><span><b>Enchanting</b><small>Disenchantable loot</small></span></button>
+    </div>
+    {(goals.tailoring||goals.enchanting)&&<div className="goal-skills">{["Tailoring","Enchanting"].filter(p=>goals[p.toLowerCase()]).map(p=><label key={p}>{p} skill<input type="number" min="0" max="300" value={Number(currentSkills[p]??current.professions?.find(x=>x.name===p)?.skill??0)} onChange={e=>setSkill(p,e.target.value)}/><span>/ 300</span></label>)}</div>}
+   </section>
+   <section className="recommendation-layout">
+    <div className="primary-column">
+     <div className="section-heading recommendation-heading"><div><div className="kicker">YOUR BEST MATCH</div><h2>Where to run next</h2></div><span className="live-pill"><i/> Character analysis</span></div>
+     {best&&["ready","partial_data"].includes(rec.status)?<article className="best-card">
+      <div className="best-card-top"><span className="recommend-label"><Target size={14}/> TOP DUNGEON</span><span className="level-pill">Level {best.min_level}–{best.max_level}</span></div>
+      <h3>{best.name}</h3><p className="best-summary">{best.upgrade_slots} potential gear slot upgrades for {current.name}. {best.best_upgrade?.name?"Best target: "+best.best_upgrade.name+".":""}</p>
+      <div className="best-stats"><div><b>{best.upgrade_slots}</b><span>Upgrade slots</span></div><div><b>{best.best_upgrade?.drop_chance?best.best_upgrade.drop_chance.toFixed(1)+"%":"—"}</b><span>Best item drop chance</span></div><div><b>{rec.rankings?.length||1}</b><span>Dungeons compared</span></div></div>
+      <div className="loot-heading"><span>UPGRADES TO TARGET</span><small>Item stats compared with your gear</small></div>
+      <div className="loot-list">{(best.upgrades||[]).map(u=><a className="loot-row" href={u.item_url} target="_blank" rel="noreferrer" key={u.item_id+"-"+u.slot}>
+       <ItemIcon src={u.icon_url} name={u.name}/><span className="loot-main"><b>{u.name}</b><small>{u.slot} <span>·</span> {u.boss}</small><StatLine stats={u.stats}/></span><span className="loot-extra"><b>{u.item_level?"iLvl "+u.item_level:""}</b><small>{u.drop_chance?u.drop_chance.toFixed(1)+"% drop":"Drop rate n/a"}</small><ExternalLink size={13}/></span>
+      </a>)}</div>
+      <div className="best-card-foot"><span>Estimated stat-weighted value per run · not a run-time estimate</span><a href={best.source_url} target="_blank" rel="noreferrer">Loot source <ExternalLink size={12}/></a></div>
+     </article>:<div className="empty-card"><h3>{rec?.status==="no_upgrades_found"?"No useful upgrades found":"Dungeon analysis unavailable"}</h3><p>{rec?.message||"Run a fresh character analysis to calculate dungeon recommendations."}</p></div>}
+     {rec?.rankings?.length>1&&<div className="alternatives"><div className="subhead">Other dungeons worth considering</div>{rec.rankings.slice(1,5).map((d,i)=><div className="alternative-row" key={d.name}><span className="rank-number">0{i+2}</span><div><b>{d.name}</b><small>{d.upgrade_slots} upgrade slots · best drop: {d.best_upgrade?.name}</small></div><span className="alt-level">Lv {d.min_level}–{d.max_level}</span></div>)}</div>}
+    </div>
+    <aside className="side-column">
+     <div className="side-card"><div className="kicker">CHARACTER SNAPSHOT</div><h3>Equipped gear</h3><div className="gear-count">{gear.length} items synced from Armory</div>
+      <div className="gear-grid">{gear.map((g,i)=><div className="gear-tile" key={g.id||i} title={g.name+" · "+g.slot}><ItemIcon src={g.icon_url} name={g.name}/><span className="gear-info"><b>{g.name}</b><small>{g.slot} · {g.item_level?"iLvl "+g.item_level:""}</small><StatLine stats={(g.stats||[]).map(s=>(s.value>0?"+":"")+s.value+" "+s.name)}/></span></div>)}</div>
+     </div>
+     <details className="side-card profession-details"><summary><span><BookOpen size={16}/> Profession tracker</span><ChevronDown size={16}/></summary><p className="side-muted">Optional skill tracking. Progress is saved per character in this browser.</p>
+      <div className="profession-inputs">{visibleSkills.map(prof=>{const skill=Number(currentSkills[prof]??current.professions?.find(p=>p.name===prof)?.skill??0),info=rankInfo(skill);return <label key={prof}><span>{prof}<small>{info.rank} · {skill}/300</small></span><input type="number" min="0" max="300" value={skill} onChange={e=>setSkill(prof,e.target.value)}/></label>})}</div>
+      <button className="text-button" onClick={()=>setShowAllSkills(x=>!x)}>{showAllSkills?"Show focused skills":"Show all professions"}</button>
+      <div className="profession-guides">{(showAllSkills?NAMES:["Tailoring","Enchanting"]).map(p=><a key={p} href={SOURCES[p]} target="_blank" rel="noreferrer">{p} guide <ExternalLink size={11}/></a>)}</div>
+     </details>
+     <div className="side-card method-card"><div className="kicker">HOW IT WORKS</div><p>Recommendations compare usable dungeon loot against your equipped stats. Stat weights are estimates, not a combat simulator.</p><p>Dungeon clear times and complete profession-material drop tables are not yet verified, so the current score does not claim to maximize upgrades or profession skill-ups per hour.</p></div>
+    </aside>
+   </section>
+  </>}
+  <footer className="footer"><span>FOREVER DUNGEON ADVISOR</span><span>Profiles and preferences stay in this browser</span></footer>
  </main>
 }
