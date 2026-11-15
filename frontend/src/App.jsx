@@ -7,7 +7,7 @@ function ItemIcon({src,name,size="large"}){return <span className={"itemicon "+s
 function StatLine({stats}){if(!stats?.length)return null;return <div className="statline">{stats.map((s,i)=><span key={i}>{s}</span>)}</div>}
 function normalizeTooltipStats(raw){
  return (Array.isArray(raw)?raw:raw&&typeof raw==="object"?Object.entries(raw).map(([name,value])=>({name,value})):[]).map(stat=>{
-  if(typeof stat==="string"){const match=stat.match(/^\\s*([+-]?\\d+(?:\\.\\d+)?)\\s+(.+?)\\s*$/);return match?{name:match[2],value:Number(match[1])}:null;}
+  if(typeof stat==="string"){const match=stat.match(/^\s*([+-]?\d+(?:\.\d+)?)\s+(.+?)\s*$/);return match?{name:match[2],value:Number(match[1])}:null;}
   const name=stat?.name||stat?.stat||stat?.type?.name||stat?.type;
   const value=Number(stat?.value??stat?.amount??0);
   return name&&Number.isFinite(value)&&value!==0?{name:String(name),value}:null;
