@@ -84,11 +84,15 @@ export default function App(){
  const plannerSlots=[...new Set(plannerUpgrades.map(u=>u.slot).filter(Boolean))].sort();
  const plannerChoices=plannerUpgrades.filter(u=>u.slot===plannerSlot);
  const plannedStats=(()=>{
-  const totals={};
-  const add=(raw,mult=1)=>normalizeTooltipStats(raw||[]).forEach(s=>{totals[s.name]=(totals[s.name]||0)+s.value*mult});
-  gear.forEach(g=>add(g.stats));
-  plannedItems.forEach(u=>{(u.equipped_items||[]).forEach(old=>add(old.stats,-1));add(u.stat_values?.length?u.stat_values:u.stats)});
-  return Object.entries(totals).filter(([,v])=>Math.abs(v)>.001).sort((x,y)=>Math.abs(y[1])-Math.abs(x[1]));
+  const before={},after={};
+  const add=(map,raw,mult=1)=>normalizeTooltipStats(raw||[]).forEach(s=>{map[s.name]=(map[s.name]||0)+s.value*mult});
+  gear.forEach(g=>add(before,g.stats));
+  Object.assign(after,before);
+  plannedItems.forEach(u=>{(u.equipped_items||[]).forEach(old=>add(after,old.stats,-1));add(after,u.stat_values?.length?u.stat_values:u.stats)});
+  return [...new Set([...Object.keys(before),...Object.keys(after)])]
+   .map(name=>({name,before:before[name]||0,after:after[name]||0,delta:(after[name]||0)-(before[name]||0)}))
+   .filter(row=>Math.abs(row.before)>.001||Math.abs(row.after)>.001)
+   .sort((x,y)=>Math.abs(y.after)-Math.abs(x.after));
  })();
  async function addPlannerItem(){
   const item=plannerChoices.find(x=>String(x.item_id)===String(plannerItemId));
@@ -199,7 +203,7 @@ export default function App(){
      <div className="planner-controls">
       <div className="planner-add"><label>GEAR SLOT<select value={plannerSlot} onChange={e=>{setPlannerSlot(e.target.value);setPlannerItemId("");}}><option value="">Choose a slot</option>{plannerSlots.map(slot=><option key={slot} value={slot}>{slot}</option>)}</select></label><label>ITEM<select value={plannerItemId} onChange={e=>setPlannerItemId(e.target.value)} disabled={!plannerSlot}><option value="">Choose an upgrade</option>{plannerChoices.map(item=><option key={item.item_id+"-"+item.boss} value={item.item_id}>{item.name} · {item.dungeon}</option>)}</select></label><button type="button" disabled={!plannerItemId} onClick={addPlannerItem}>Add to build</button></div>
       <div className="planned-list"><div className="planner-subhead">YOUR PROPOSED GEAR SET</div>{plannedItems.length?plannedItems.map(item=><div className="planned-item" key={item.slot}><ItemIcon src={item.icon_url} name={item.name} size="small"/><span><b>{item.name}</b><small>{item.slot} · {item.dungeon}</small></span><button type="button" onClick={()=>removePlannerItem(item.slot)} aria-label={"Remove "+item.name}>Remove</button></div>):<p className="planner-empty">No changes yet. Choose an item above to start building a set.</p>}</div>
-      <div className="planner-stats"><div className="planner-subhead">PROJECTED EQUIPPED STATS</div><div className="planner-stat-head"><span>STAT</span><span>WITH BUILD</span></div>{plannedStats.slice(0,12).map(([stat,value])=><div className="planner-stat" key={stat}><span>{stat}</span><b>{Number.isInteger(value)?value:value.toFixed(1)}</b></div>)}</div>
+      <div className="planner-stats"><div className="planner-subhead">FULL CHARACTER STAT COMPARISON</div><div className="planner-stat-head"><span>STAT</span><span>CURRENT</span><span>PROPOSED</span><span>CHANGE</span></div>{plannedStats.slice(0,14).map(row=><div className="planner-stat" key={row.name}><span>{row.name}</span><span>{Number.isInteger(row.before)?row.before:row.before.toFixed(1)}</span><b>{Number.isInteger(row.after)?row.after:row.after.toFixed(1)}</b><strong className={row.delta>0?"stat-up":row.delta<0?"stat-down":"stat-even"}>{row.delta>0?"+":""}{Number.isInteger(row.delta)?row.delta:row.delta.toFixed(1)}</strong></div>)}</div>
      </div>
     </div>
    </section>
