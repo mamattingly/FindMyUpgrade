@@ -1,0 +1,508 @@
+{
+  "schema_version": 1,
+  "source": "ATTWoWAddon/AllTheThings Forever dungeon database (.contrib/.db/forever/dungeons & raids)",
+  "license": "MIT",
+  "license_notice": "Copyright (c) 2026 AllTheThings WoW Addon. Used under the MIT License; see LICENSE-THIRD-PARTY.md.",
+  "generated_at": "2026-11-14",
+  "dungeons": [
+    {
+      "name": "Gnomeregan",
+      "min_level": 29,
+      "max_level": 38,
+      "faction": null,
+      "source_file": "gnomeregan.lua",
+      "source_url": "https://github.com/ATTWoWAddon/AllTheThings/blob/master/.contrib/.db/forever/dungeons%20%26%20raids/gnomeregan.lua",
+      "bosses": [
+        {
+          "npc_id": 6231,
+          "boss": "Techbot",
+          "items": [
+            9277,
+            9444
+          ]
+        },
+        {
+          "npc_id": 6228,
+          "boss": "Dark Iron Ambassador",
+          "items": [
+            5108,
+            9456,
+            9457,
+            9455
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Razorfen Kraul",
+      "min_level": 30,
+      "max_level": 40,
+      "faction": null,
+      "source_file": "razorfen%20kraul.lua",
+      "source_url": "https://github.com/ATTWoWAddon/AllTheThings/blob/master/.contrib/.db/forever/dungeons%20%26%20raids/razorfen%20kraul.lua",
+      "bosses": [
+        {
+          "npc_id": 6168,
+          "boss": "Roogug",
+          "items": [
+            274155,
+            274152,
+            6841,
+            274149
+          ]
+        },
+        {
+          "npc_id": 4424,
+          "boss": "Aggem Thorncurse <Death's Head Prophet>",
+          "items": [
+            274158,
+            6681,
+            274159
+          ]
+        },
+        {
+          "npc_id": 4428,
+          "boss": "Death Speaker Jargba <Death's Head Captain>",
+          "items": [
+            2816,
+            6685,
+            6682
+          ]
+        },
+        {
+          "npc_id": 4438,
+          "boss": "Razorfen Spearhide",
+          "items": [
+            6679
+          ]
+        },
+        {
+          "npc_id": 4420,
+          "boss": "Overlord Ramtusk",
+          "items": [
+            6687,
+            274161,
+            6686
+          ]
+        },
+        {
+          "npc_id": 4842,
+          "boss": "Earthcaller Halmgar",
+          "items": [
+            6689,
+            6688
+          ]
+        },
+        {
+          "npc_id": 4425,
+          "boss": "Blind Hunter",
+          "items": [
+            6696,
+            6695,
+            6697
+          ]
+        },
+        {
+          "npc_id": 4422,
+          "boss": "Agathelos the Raging",
+          "items": [
+            6691,
+            274160,
+            6690
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Scarlet Monastery: Graveyard",
+      "min_level": 28,
+      "max_level": 38,
+      "faction": null,
+      "source_file": "scarlet%20monastery.lua",
+      "source_url": "https://github.com/ATTWoWAddon/AllTheThings/blob/master/.contrib/.db/forever/dungeons%20%26%20raids/scarlet%20monastery.lua",
+      "bosses": [
+        {
+          "npc_id": 6488,
+          "boss": "Fallen Champion",
+          "items": [
+            7690,
+            7691,
+            7689
+          ]
+        },
+        {
+          "npc_id": 6490,
+          "boss": "Azshir the Sleepless",
+          "items": [
+            7709,
+            7731,
+            7708
+          ]
+        },
+        {
+          "npc_id": 6489,
+          "boss": "Ironspine",
+          "items": [
+            7687,
+            7688,
+            7686
+          ]
+        },
+        {
+          "npc_id": 3983,
+          "boss": "Interrogator Vishas",
+          "items": [
+            7683,
+            7682,
+            274290
+          ]
+        },
+        {
+          "npc_id": 4543,
+          "boss": "Bloodmage Thalnos",
+          "items": [
+            7685,
+            7684,
+            274291
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Scarlet Monastery: Library",
+      "min_level": 29,
+      "max_level": 39,
+      "faction": null,
+      "source_file": "scarlet%20monastery.lua",
+      "source_url": "https://github.com/ATTWoWAddon/AllTheThings/blob/master/.contrib/.db/forever/dungeons%20%26%20raids/scarlet%20monastery.lua",
+      "bosses": [
+        {
+          "npc_id": 3974,
+          "boss": "Houndmaster Loksey",
+          "items": [
+            7710,
+            7756,
+            3456,
+            273109,
+            274292
+          ]
+        },
+        {
+          "npc_id": 6487,
+          "boss": "Arcanist Doan",
+          "items": [
+            7714,
+            7713,
+            7712,
+            7711,
+            274293,
+            274294
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Scarlet Monastery: Armory",
+      "min_level": 32,
+      "max_level": 42,
+      "faction": null,
+      "source_file": "scarlet%20monastery.lua",
+      "source_url": "https://github.com/ATTWoWAddon/AllTheThings/blob/master/.contrib/.db/forever/dungeons%20%26%20raids/scarlet%20monastery.lua",
+      "bosses": [
+        {
+          "npc_id": 3975,
+          "boss": "Herod",
+          "items": [
+            7717,
+            7719,
+            7718,
+            10330
+          ]
+        },
+        {
+          "npc_id": 6575,
+          "boss": "Scarlet Trainee",
+          "items": [
+            255730,
+            23192
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Scarlet Monastery: Cathedral",
+      "min_level": 35,
+      "max_level": 45,
+      "faction": null,
+      "source_file": "scarlet%20monastery.lua",
+      "source_url": "https://github.com/ATTWoWAddon/AllTheThings/blob/master/.contrib/.db/forever/dungeons%20%26%20raids/scarlet%20monastery.lua",
+      "bosses": [
+        {
+          "npc_id": 4542,
+          "boss": "High Inquisitor Fairbanks",
+          "items": [
+            19507,
+            19508,
+            19509
+          ]
+        },
+        {
+          "npc_id": 3976,
+          "boss": "Scarlet Commander Mograine",
+          "items": [
+            7726,
+            7724,
+            7723,
+            10330
+          ]
+        },
+        {
+          "npc_id": 3977,
+          "boss": "High Inquisitor Whitemane",
+          "items": [
+            7721,
+            7722,
+            7720
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Blackfathom Deeps",
+      "min_level": 24,
+      "max_level": 32,
+      "faction": null,
+      "source_file": "blackfathom%20deeps.lua",
+      "source_url": "https://github.com/ATTWoWAddon/AllTheThings/blob/master/.contrib/.db/forever/dungeons%20%26%20raids/blackfathom%20deeps.lua",
+      "bosses": [
+        {
+          "npc_id": 4887,
+          "boss": "Ghamoo-ra",
+          "items": [
+            6908,
+            273839,
+            6907
+          ]
+        },
+        {
+          "npc_id": 4831,
+          "boss": "Lady Sarevess",
+          "items": [
+            252798,
+            11121,
+            888,
+            3078
+          ]
+        },
+        {
+          "npc_id": 12876,
+          "boss": "Baron Aquanis",
+          "items": [
+            16782
+          ]
+        },
+        {
+          "npc_id": 6243,
+          "boss": "Gelihast",
+          "items": [
+            6906,
+            1470,
+            6905,
+            273840,
+            273141
+          ]
+        },
+        {
+          "npc_id": 12902,
+          "boss": "Lorgus Jett",
+          "items": [
+            273843,
+            273841,
+            273842
+          ]
+        },
+        {
+          "npc_id": 4830,
+          "boss": "Old Serra'kis",
+          "items": [
+            6902,
+            6904,
+            6901
+          ]
+        },
+        {
+          "npc_id": 4832,
+          "boss": "Twilight Lord Kelris",
+          "items": [
+            6903,
+            1155,
+            273846
+          ]
+        },
+        {
+          "npc_id": 4829,
+          "boss": "Aku'mai",
+          "items": [
+            6910,
+            6911,
+            6909
+          ]
+        }
+      ]
+    },
+    {
+      "name": "City of Dalaran",
+      "min_level": 28,
+      "max_level": 33,
+      "faction": null,
+      "source_file": "city%20of%20dalaran.lua",
+      "source_url": "https://github.com/ATTWoWAddon/AllTheThings/blob/master/.contrib/.db/forever/dungeons%20%26%20raids/city%20of%20dalaran.lua",
+      "bosses": []
+    },
+    {
+      "name": "Razorfen Downs",
+      "min_level": 40,
+      "max_level": 50,
+      "faction": null,
+      "source_file": "razorfen%20downs.lua",
+      "source_url": "https://github.com/ATTWoWAddon/AllTheThings/blob/master/.contrib/.db/forever/dungeons%20%26%20raids/razorfen%20downs.lua",
+      "bosses": [
+        {
+          "npc_id": 7895,
+          "boss": "Ambassador Bloodrage",
+          "items": [
+            286639
+          ]
+        },
+        {
+          "npc_id": 7355,
+          "boss": "Tuten'kash",
+          "items": [
+            10776,
+            10775,
+            10777
+          ]
+        },
+        {
+          "npc_id": 7356,
+          "boss": "Plaguemaw the Rotting",
+          "items": [
+            10766,
+            10760,
+            274380
+          ]
+        },
+        {
+          "npc_id": 7357,
+          "boss": "Mordresh Fire Eye",
+          "items": [
+            10770,
+            10769,
+            10771,
+            252843
+          ]
+        },
+        {
+          "npc_id": 8567,
+          "boss": "Glutton",
+          "items": [
+            10772,
+            10774,
+            274385
+          ]
+        },
+        {
+          "npc_id": 7354,
+          "boss": "Ragglesnout",
+          "items": [
+            10758,
+            10767,
+            10768
+          ]
+        },
+        {
+          "npc_id": 7358,
+          "boss": "Amnennar the Coldbringer",
+          "items": [
+            10420,
+            10761,
+            10763,
+            10764,
+            10762,
+            10765,
+            274381
+          ]
+        }
+      ]
+    },
+    {
+      "name": "The Stockade",
+      "min_level": 22,
+      "max_level": 30,
+      "faction": null,
+      "source_file": "the%20stockade.lua",
+      "source_url": "https://github.com/ATTWoWAddon/AllTheThings/blob/master/.contrib/.db/forever/dungeons%20%26%20raids/the%20stockade.lua",
+      "bosses": [
+        {
+          "npc_id": 1720,
+          "boss": "Bruegal Ironknuckle",
+          "items": [
+            2942,
+            3228,
+            2941
+          ]
+        },
+        {
+          "npc_id": 1666,
+          "boss": "Kam Deepfury",
+          "items": [
+            3640,
+            273808,
+            273807,
+            2280
+          ]
+        },
+        {
+          "npc_id": 1663,
+          "boss": "Dextren Ward",
+          "items": [
+            3628,
+            273819,
+            273817,
+            273820
+          ]
+        },
+        {
+          "npc_id": 1717,
+          "boss": "Hamhock",
+          "items": [
+            273809,
+            273810,
+            273811
+          ]
+        },
+        {
+          "npc_id": 1696,
+          "boss": "Targorr the Dread",
+          "items": [
+            3630,
+            273805,
+            273806,
+            273804
+          ]
+        },
+        {
+          "npc_id": 1716,
+          "boss": "Bazil Thredd",
+          "items": [
+            2926,
+            273827,
+            273829,
+            273824,
+            273825
+          ]
+        }
+      ]
+    }
+  ]
+}
