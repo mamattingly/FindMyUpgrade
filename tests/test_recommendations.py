@@ -1,4 +1,5 @@
-from backend import recommendations as rec\nfrom backend.main import _parse_wowhead_item_page
+from backend import recommendations as rec
+from backend.main import _parse_wowhead_item_page
 
 
 def test_normalise_stats_from_blizzard_shape():
