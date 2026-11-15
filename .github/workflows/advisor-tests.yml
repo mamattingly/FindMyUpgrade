@@ -47,7 +47,7 @@ jobs:
       - name: Wait for this version to reach Render
         env:
           APP_URL: https://wow-forever-dungeon-advisor-1zlg.onrender.com
-          EXPECTED_VERSION: "0.9.0"
+          EXPECTED_VERSION: "0.9.1"
         run: |
           python - <<'PY'
           import json, os, time, urllib.request
@@ -174,49 +174,85 @@ jobs:
               raise SystemExit("Forever appearance API did not provide usable race/gender data.")
           if len(model.get("items") or []) < 5:
               raise SystemExit("Fewer than five equipped item display IDs resolved for the 3D model.")
-          viewer_url = os.environ["APP_URL"].rstrip("/") + "/api/modelviewer/classic/viewer/viewer.min.js"
+          viewer_url = os.environ["APP_URL"].rstrip("/") + "/api/modelviewer/live/viewer/viewer.min.js"
           with urllib.request.urlopen(viewer_url, timeout=90) as response:
               viewer_bytes = response.read()
           if len(viewer_bytes) < 10000:
-              raise SystemExit("Classic 3D viewer script did not load through the asset proxy.")
+              raise SystemExit("Live 3D viewer script did not load through the asset proxy.")
           customization_id = int(model["race"]) * 2 - 1 + int(model["gender"])
           metadata_url = (os.environ["APP_URL"].rstrip("/") +
-              f"/api/modelviewer/classic/meta/charactercustomization/{customization_id}.json")
+              f"/api/modelviewer/live/meta/charactercustomization/{customization_id}.json")
           with urllib.request.urlopen(metadata_url, timeout=60) as response:
               customization = json.load(response)
           if not customization:
-              raise SystemExit("Classic race/gender customization metadata is empty.")
-          # Check the exact metadata files needed for the equipped model.
-          # Slot 21 is the model-viewer's main-hand slot and uses meta/item/.
-          model_asset_paths = [
-              "classic/meta/armor/3/20715.json",
-              "classic/meta/armor/4/8370.json",
-              "classic/meta/armor/6/11172.json",
-              "classic/meta/armor/9/3382.json",
-              "classic/meta/item/5554.json",
-              "classic/meta/armor/18/21024.json",
-              "live/viewer/viewer.min.js",
-              "live/meta/armor/3/20715.json",
-              "live/meta/item/5554.json",
-              "live/meta/charactercustomization/7.json",
-              "classic/mo3/143601.mo3",
-              "live/mo3/143601.mo3",
-          ]
+              raise SystemExit("Live race/gender customization metadata is empty.")
+
+          # Pull the actual Wowhead metadata for all 11 equipped appearances.
+          # A 200 response must include item metadata, not just a CDN HTML error.
+          slot_paths = {
+              3: "armor/3/20715.json", 4: "armor/4/8370.json",
+              5: "armor/5/8857.json", 6: "armor/6/11172.json",
+              7: "armor/7/8420.json", 8: "armor/8/4622.json",
+              9: "armor/9/3382.json", 10: "armor/10/27753.json",
+              15: "armor/15/27752.json", 18: "armor/18/21024.json",
+              21: "item/5554.json",
+          }
+          model_asset_paths = ["live/viewer/viewer.min.js",
+              f"live/meta/charactercustomization/{customization_id}.json"] + [
+              "live/meta/" + path for path in slot_paths.values()
+          ] + ["live/mo3/143601.mo3"]
           model_asset_checks = []
+          metadata_documents = {}
           for asset in model_asset_paths:
               asset_url = os.environ["APP_URL"].rstrip("/") + "/api/modelviewer/" + asset
               try:
                   with urllib.request.urlopen(asset_url, timeout=35) as response:
                       data = response.read()
-                      model_asset_checks.append({
+                      entry = {
                           "path": asset, "status": response.status,
                           "bytes": len(data), "content_type": response.headers.get("Content-Type")
-                      })
+                      }
+                      if asset.endswith(".json"):
+                          document = json.loads(data)
+                          metadata_documents[asset] = document
+                          entry["top_keys"] = list(document.keys())[:35] if isinstance(document, dict) else []
+                      model_asset_checks.append(entry)
               except urllib.error.HTTPError as exc:
                   model_asset_checks.append({"path": asset, "status": exc.code})
               except Exception as exc:
                   model_asset_checks.append({"path": asset, "error": type(exc).__name__})
-          print("Model asset path probes:", json.dumps(model_asset_checks, indent=2))
+
+          # Find the character's model references in the selected customization record
+          # and the related file references in each equipped item's metadata.
+          def model_refs(value, path="$", out=None, depth=0):
+              if out is None:
+                  out = []
+              if depth > 8 or len(out) >= 80:
+                  return out
+              if isinstance(value, dict):
+                  for key, child in value.items():
+                      key_text = str(key)
+                      lowered = key_text.casefold()
+                      if any(term in lowered for term in ("model", "display", "file", "skeleton", "creature")):
+                          if isinstance(child, (str, int, float, bool)) or child is None:
+                              out.append({"path": path + "." + key_text, "value": child})
+                          elif isinstance(child, dict):
+                              out.append({"path": path + "." + key_text, "keys": list(child.keys())[:20]})
+                      if isinstance(child, (dict, list)):
+                          model_refs(child, path + "." + key_text, out, depth + 1)
+              elif isinstance(value, list):
+                  for index, child in enumerate(value[:500]):
+                      if isinstance(child, (dict, list)):
+                          model_refs(child, path + "[" + str(index) + "]", out, depth + 1)
+              return out
+
+          char_doc = metadata_documents.get(f"live/meta/charactercustomization/{customization_id}.json")
+          print("Live character customization model references:",
+              json.dumps(model_refs(char_doc), indent=2)[:12000])
+          print("Live item model metadata references:",
+              json.dumps({path: model_refs(doc) for path, doc in metadata_documents.items()
+                          if "/meta/armor/" in path or "/meta/item/" in path}, indent=2)[:16000])
+          print("Live model asset path probes:", json.dumps(model_asset_checks, indent=2))
           gear = payload.get("equipped_gear") or []
           if len(gear) < 10:
               raise SystemExit("Live scan did not return the expected equipped gear.")
