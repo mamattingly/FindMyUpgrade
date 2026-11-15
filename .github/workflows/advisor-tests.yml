@@ -47,7 +47,7 @@ jobs:
       - name: Wait for this version to reach Render
         env:
           APP_URL: https://wow-forever-dungeon-advisor-1zlg.onrender.com
-          EXPECTED_VERSION: "0.8.8"
+          EXPECTED_VERSION: "0.9.0"
         run: |
           python - <<'PY'
           import json, os, time, urllib.request
@@ -167,6 +167,7 @@ jobs:
               "missing_display_ids": model.get("missing_display_ids"),
               "resolved_appearances": model.get("resolved_appearances"),
               "display_fallback_debug": model.get("display_fallback_debug"),
+              "wago_db2": model.get("wago_db2"),
               "armory_render_url": payload.get("armory_render_url"),
           }, indent=2))
           if not model.get("race") or model.get("gender") not in (0, 1):
@@ -185,6 +186,37 @@ jobs:
               customization = json.load(response)
           if not customization:
               raise SystemExit("Classic race/gender customization metadata is empty.")
+          # Check the exact metadata files needed for the equipped model.
+          # Slot 21 is the model-viewer's main-hand slot and uses meta/item/.
+          model_asset_paths = [
+              "classic/meta/armor/3/20715.json",
+              "classic/meta/armor/4/8370.json",
+              "classic/meta/armor/6/11172.json",
+              "classic/meta/armor/9/3382.json",
+              "classic/meta/item/5554.json",
+              "classic/meta/armor/18/21024.json",
+              "live/viewer/viewer.min.js",
+              "live/meta/armor/3/20715.json",
+              "live/meta/item/5554.json",
+              "live/meta/charactercustomization/7.json",
+              "classic/mo3/143601.mo3",
+              "live/mo3/143601.mo3",
+          ]
+          model_asset_checks = []
+          for asset in model_asset_paths:
+              asset_url = os.environ["APP_URL"].rstrip("/") + "/api/modelviewer/" + asset
+              try:
+                  with urllib.request.urlopen(asset_url, timeout=35) as response:
+                      data = response.read()
+                      model_asset_checks.append({
+                          "path": asset, "status": response.status,
+                          "bytes": len(data), "content_type": response.headers.get("Content-Type")
+                      })
+              except urllib.error.HTTPError as exc:
+                  model_asset_checks.append({"path": asset, "status": exc.code})
+              except Exception as exc:
+                  model_asset_checks.append({"path": asset, "error": type(exc).__name__})
+          print("Model asset path probes:", json.dumps(model_asset_checks, indent=2))
           gear = payload.get("equipped_gear") or []
           if len(gear) < 10:
               raise SystemExit("Live scan did not return the expected equipped gear.")

@@ -308,3 +308,34 @@ def test_thewowdb_model_fields_extract_display_and_appearance_ids():
         "display_id": 123456,
         "appearance_id": 66022,
     }
+
+
+def test_wago_db2_item_appearance_to_display_chain():
+    from backend.main import _parse_wago_appearance_tables
+
+    modified = """\ufeffID,ItemID,ItemAppearanceModifierID,ItemAppearanceID,OrderIndex,TransmogSourceTypeEnum
+1,6512,0,65235,0,0
+2,1929,0,63657,0,0
+3,6394,0,65175,0,0
+4,9794,0,66021,0,0
+5,270029,0,66022,0,0
+"""
+    appearances = """ID,DisplayType,ItemDisplayInfoID,DefaultIconFileDataID,UiOrder
+65235,0,12345,0,1
+63657,0,23456,0,1
+65175,0,34567,0,1
+66021,0,45678,0,1
+66022,0,56789,0,1
+"""
+    mapping, modified_count, appearance_count = _parse_wago_appearance_tables(
+        modified, appearances)
+
+    assert mapping == {
+        6512: {"appearance_id": 65235, "display_id": 12345},
+        1929: {"appearance_id": 63657, "display_id": 23456},
+        6394: {"appearance_id": 65175, "display_id": 34567},
+        9794: {"appearance_id": 66021, "display_id": 45678},
+        270029: {"appearance_id": 66022, "display_id": 56789},
+    }
+    assert modified_count == 5
+    assert appearance_count == 5

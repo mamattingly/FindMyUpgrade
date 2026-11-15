@@ -1,6 +1,6 @@
 from pathlib import Path
 from urllib.parse import quote
-import os, re, json, html, time, asyncio
+import os, re, json, html, time, asyncio, csv, io
 import httpx
 from bs4 import BeautifulSoup
 from fastapi import FastAPI, HTTPException
@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from typing import Literal
 from backend.recommendations import DUNGEONS, recommend_dungeons
 
-app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.8.8")
+app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.9.0")
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "frontend" / "dist"
 REGION_LOCALES = {"us": "en_US", "eu": "en_GB", "kr": "ko_KR", "tw": "zh_TW"}
@@ -301,6 +301,138 @@ async def _wowhead_page_display_id(client, item_id):
 
 MODEL_APPEARANCE_CACHE = {}
 MODEL_APPEARANCE_DIAGNOSTICS = {}
+WAGO_DB2_CACHE = {"build": None, "item_to_appearances": {}, "appearance_to_display": {}, "diagnostics": []}
+WAGO_DB2_LOCK = asyncio.Lock()
+WAGO_DB2_BUILDS = ("1.60.1.70938", "1.60.1.70888", "1.60.1.70532")
+
+
+def _csv_field(row, field):
+    target = re.sub(r"[^a-z0-9]", "", field.casefold())
+    for key, value in row.items():
+        if re.sub(r"[^a-z0-9]", "", str(key).casefold()) == target:
+            return value
+    return None
+
+
+def _parse_wago_appearance_tables(item_modified_csv, item_appearance_csv):
+    """Build ItemID -> ItemDisplayInfoID through the two authoritative DB2 tables."""
+    item_to_appearances = {}
+    for row in csv.DictReader(io.StringIO((item_modified_csv or "").lstrip("\ufeff"))):
+        try:
+            item_id = int(_csv_field(row, "ItemID") or 0)
+            appearance_id = int(_csv_field(row, "ItemAppearanceID") or 0)
+            order_index = int(_csv_field(row, "OrderIndex") or 0)
+        except (TypeError, ValueError):
+            continue
+        if item_id > 0 and appearance_id > 0:
+            item_to_appearances.setdefault(item_id, []).append((order_index, appearance_id))
+
+    appearance_to_display = {}
+    for row in csv.DictReader(io.StringIO((item_appearance_csv or "").lstrip("\ufeff"))):
+        try:
+            appearance_id = int(_csv_field(row, "ID") or 0)
+            display_id = int(_csv_field(row, "ItemDisplayInfoID") or 0)
+        except (TypeError, ValueError):
+            continue
+        if appearance_id > 0 and display_id > 0:
+            appearance_to_display[appearance_id] = display_id
+
+    item_to_display = {}
+    for item_id, candidates in item_to_appearances.items():
+        for _order_index, appearance_id in sorted(candidates):
+            display_id = appearance_to_display.get(appearance_id)
+            if display_id:
+                item_to_display[item_id] = {
+                    "appearance_id": appearance_id,
+                    "display_id": display_id,
+                }
+                break
+    return item_to_display, len(item_to_appearances), len(appearance_to_display)
+
+
+async def _fetch_wago_csv(client, table, build):
+    url = f"https://wago.tools/db2/{table}/csv"
+    try:
+        response = await client.get(
+            url, params={"build": build, "locale": "enUS"},
+            headers={"User-Agent": "WoW-Forever-Dungeon-Advisor/0.9.0", "Accept": "text/csv,*/*"},
+            timeout=35)
+        if response.status_code != 200:
+            return None, {"table": table, "build": build, "status": response.status_code}
+        body = response.text
+        if len(body) > 60 * 1024 * 1024:
+            return None, {"table": table, "build": build, "status": 200,
+                          "error": "CSV exceeded the 60 MB safety limit", "bytes": len(body)}
+        reader = csv.DictReader(io.StringIO(body.lstrip("\ufeff")))
+        fields = reader.fieldnames or []
+        return body, {"table": table, "build": build, "status": 200,
+                      "bytes": len(response.content), "columns": fields[:30]}
+    except (httpx.HTTPError, ValueError) as exc:
+        return None, {"table": table, "build": build, "error": type(exc).__name__}
+
+
+async def _wago_build_candidates(client):
+    candidates = []
+    try:
+        response = await client.get(
+            "https://wago.tools/db2",
+            headers={"User-Agent": "WoW-Forever-Dungeon-Advisor/0.9.0"},
+            timeout=15)
+        match = re.search(r'data-page="([^"]+)"', response.text)
+        if response.status_code == 200 and match:
+            payload = json.loads(html.unescape(match.group(1)))
+            versions = payload.get("props", {}).get("versions", [])
+            candidates = [v for v in versions if re.match(r"^1\\.60\\.1\\.\\d+$", str(v))]
+            candidates.sort(key=lambda v: tuple(int(x) for x in re.findall(r"\\d+", v)), reverse=True)
+    except (httpx.HTTPError, ValueError, TypeError):
+        pass
+    return list(dict.fromkeys(candidates + list(WAGO_DB2_BUILDS)))
+
+
+async def _load_wago_appearance_index(client):
+    if WAGO_DB2_CACHE["build"] or WAGO_DB2_CACHE["diagnostics"]:
+        return WAGO_DB2_CACHE
+    async with WAGO_DB2_LOCK:
+        if WAGO_DB2_CACHE["build"] or WAGO_DB2_CACHE["diagnostics"]:
+            return WAGO_DB2_CACHE
+        builds = await _wago_build_candidates(client)
+        WAGO_DB2_CACHE["diagnostics"].append({
+            "source": "wago_db2_build_discovery", "candidate_builds": builds[:5]
+        })
+        for build in builds[:5]:
+            modified_task = _fetch_wago_csv(client, "ItemModifiedAppearance", build)
+            appearance_task = _fetch_wago_csv(client, "ItemAppearance", build)
+            modified_csv, appearance_csv = await asyncio.gather(modified_task, appearance_task)
+            WAGO_DB2_CACHE["diagnostics"].extend([modified_csv[1], appearance_csv[1]])
+            if not modified_csv[0] or not appearance_csv[0]:
+                continue
+            try:
+                item_map, modified_count, appearance_count = _parse_wago_appearance_tables(
+                    modified_csv[0], appearance_csv[0])
+            except (csv.Error, UnicodeError, ValueError):
+                continue
+            if item_map:
+                WAGO_DB2_CACHE.update({
+                    "build": build,
+                    "item_to_appearances": item_map,
+                    "appearance_to_display": {},
+                    "diagnostics": WAGO_DB2_CACHE["diagnostics"] + [{
+                        "build": build, "resolved_item_count": len(item_map),
+                        "item_modified_appearance_item_count": modified_count,
+                        "item_appearance_count": appearance_count,
+                    }],
+                })
+                break
+        return WAGO_DB2_CACHE
+
+
+async def _wago_item_display_data(client, item_id):
+    cache = await _load_wago_appearance_index(client)
+    result = cache["item_to_appearances"].get(int(item_id))
+    if result:
+        return result
+    return None
+
 
 
 def _parse_icyveins_item_appearance(page):
@@ -475,6 +607,16 @@ async def _build_character_model(client, token, region, appearance, race_name=No
             icy_task = _icyveins_item_appearance_id(client, item_id)
             thewowdb_fields, icy_appearance_id = await asyncio.gather(thewowdb_task, icy_task)
 
+            wago_fields = await _wago_item_display_data(client, item_id)
+            if wago_fields:
+                MODEL_APPEARANCE_DIAGNOSTICS.setdefault(item_id, []).append({
+                    "source": "wago_db2",
+                    "build": WAGO_DB2_CACHE.get("build"),
+                    "appearance_id": wago_fields.get("appearance_id"),
+                    "display_id": wago_fields.get("display_id"),
+                })
+                return wago_fields["display_id"], "wago_db2_itemappearance_chain"
+
             if thewowdb_fields.get("display_id"):
                 return thewowdb_fields["display_id"], "thewowdb_display_id"
 
@@ -553,7 +695,11 @@ async def _build_character_model(client, token, region, appearance, race_name=No
             ) for item_id in set(missing) | {x["item_id"] for x in resolved_appearances
                                              if x["source"] != "blizzard_item_appearance"}
         },
-        "source": "Blizzard Forever appearance + Blizzard, TheWoWDB, Icy Veins and Wowhead item display metadata",
+        "source": "Blizzard Forever appearance + Wago DB2, TheWoWDB, Icy Veins and Wowhead item display metadata",
+        "wago_db2": {
+            "build": WAGO_DB2_CACHE.get("build"),
+            "diagnostics": WAGO_DB2_CACHE.get("diagnostics", []),
+        },
     }
 
 def _numeric_value(value):
@@ -1087,33 +1233,36 @@ async def scan(req: ScanRequest):
 
 
 
-@app.get("/api/modelviewer/classic/{asset_path:path}")
-async def classic_modelviewer_asset(asset_path: str):
-    """Same-origin, cacheable proxy for the Classic model-viewer data files."""
+@app.get("/api/modelviewer/{viewer_flavor}/{asset_path:path}")
+async def modelviewer_asset(viewer_flavor: str, asset_path: str):
+    """Same-origin, cacheable proxy for Classic and live WoW model-viewer data."""
+    if viewer_flavor not in {"classic", "live"}:
+        raise HTTPException(400, "Unsupported model viewer data set.")
     clean = asset_path.strip("/")
     if not clean or any(part in {".", ".."} for part in clean.split("/")):
         raise HTTPException(400, "Invalid model asset path.")
-    cached = MODEL_ASSET_CACHE.get(clean)
+    cache_key = f"{viewer_flavor}/{clean}"
+    cached = MODEL_ASSET_CACHE.get(cache_key)
     if cached:
         body, media_type = cached
         return Response(content=body, media_type=media_type,
                         headers={"Cache-Control": "public, max-age=86400"})
-    url = f"https://wow.zamimg.com/modelviewer/classic/{clean}"
+    url = f"https://wow.zamimg.com/modelviewer/{viewer_flavor}/{clean}"
     try:
         async with httpx.AsyncClient(timeout=25, follow_redirects=True) as client:
             upstream = await client.get(url)
     except httpx.HTTPError as exc:
         raise HTTPException(502, "The WoW model asset server could not be reached.") from exc
     if upstream.status_code == 404:
-        raise HTTPException(404, "Classic model asset not found.")
+        raise HTTPException(404, f"{viewer_flavor.title()} model asset not found.")
     if upstream.status_code != 200:
-        raise HTTPException(502, f"Classic model asset server returned HTTP {upstream.status_code}.")
+        raise HTTPException(502, f"Model asset server returned HTTP {upstream.status_code}.")
     media_type = upstream.headers.get("content-type", "application/octet-stream").split(";")[0]
     body = upstream.content
     if len(body) <= 12 * 1024 * 1024:
         if len(MODEL_ASSET_CACHE) >= 160:
             MODEL_ASSET_CACHE.pop(next(iter(MODEL_ASSET_CACHE)))
-        MODEL_ASSET_CACHE[clean] = (body, media_type)
+        MODEL_ASSET_CACHE[cache_key] = (body, media_type)
     return Response(content=body, media_type=media_type,
                     headers={"Cache-Control": "public, max-age=86400"})
 
