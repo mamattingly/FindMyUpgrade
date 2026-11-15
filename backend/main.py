@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from typing import Literal
 from backend.recommendations import DUNGEONS, recommend_dungeons
 
-app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.5.7")
+app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.5.8")
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "frontend" / "dist"
 REGION_LOCALES = {"us": "en_US", "eu": "en_GB", "kr": "ko_KR", "tw": "zh_TW"}
@@ -757,6 +757,30 @@ async def thottbot_diagnostics(ids: str = "7713,7711,281290,19019,274291,274292,
             "item_samples": item_samples,
         }
 
+
+
+@app.get("/api/warcraftdb-diagnostics")
+async def warcraftdb_diagnostics(ids: str = "7711,7713,7714,281290,274291"):
+    try:
+        item_ids = [int(x.strip()) for x in ids.split(",") if x.strip()]
+    except ValueError:
+        raise HTTPException(400, "Item IDs must be comma-separated integers.")
+    if not item_ids or len(item_ids) > 12:
+        raise HTTPException(400, "Supply between 1 and 12 item IDs.")
+    async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+        items = []
+        for item_id in item_ids:
+            result = await _warcraftdb_item_data(client, item_id)
+            items.append({
+                "item_id": item_id, "http_status": result.get("http_status"),
+                "parsed": result.get("parsed"), "name": result.get("name"),
+                "inventory_type": result.get("inventory_type"),
+                "item_class": result.get("item_class"), "item_subclass": result.get("item_subclass"),
+                "item_level": result.get("item_level"), "required_level": result.get("required_level"),
+                "stats": result.get("stats"), "drop_source_name": result.get("drop_source_name"),
+                "drop_chance": result.get("drop_chance"), "data_url": result.get("data_url"),
+            })
+        return {"app_version": app.version, "items": items}
 
 @app.post("/api/analyze")
 async def analyze(payload: dict):
