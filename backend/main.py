@@ -731,10 +731,6 @@ async def item_icons(ids: str):
     if not item_ids or len(item_ids) > 50:
         raise HTTPException(400, "Supply between 1 and 50 item IDs.")
     semaphore = asyncio.Semaphore(10)
-    async def load(item_id):
-        async with semaphore:
-            return str(item_id), await _wowhead_item_icon(
-                httpx.AsyncClient(timeout=10, follow_redirects=True), item_id)
     # A shared client reuses connections across the icon batch.
     async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
         async def fetch_icon(item_id):
