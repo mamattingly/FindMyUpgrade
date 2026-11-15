@@ -317,36 +317,3 @@ def recommend_dungeons(character: dict[str, Any], gear: list[dict[str, Any]],
         "item_data_sources": sorted({x.get("data_source", "Unknown") for x in item_data.values()}),
         "drop_rates_available": bool(ranked), "run_times_available": False,
     }
-        upgrades = sorted(best_by_slot.values(), key=lambda x: x["gain"], reverse=True)
-        if not upgrades:
-            continue
-        total = round(sum(x["gain"] for x in upgrades), 3)
-        ranked.append({
-            "name": dungeon["name"], "min_level": dungeon["min_level"],
-            "max_level": dungeon["max_level"], "score": total,
-            "upgrade_slots": len(upgrades), "best_upgrade": upgrades[0],
-            "upgrades": upgrades[:6], "source_url": dungeon.get("source_url"),
-            "faction_requirement": dungeon.get("faction"),
-            "access_requirement": dungeon.get("access_requirement"),
-        })
-    ranked.sort(key=lambda x: (x["score"], x["upgrade_slots"], x["best_upgrade"]["gain"]), reverse=True)
-    if not catalog_dungeons:
-        status = "no_dungeon_catalog"
-        message = "No sourced dungeon loot catalog is available for this character's current level and faction."
-    elif not item_data:
-        status = "data_unavailable"
-        message = "Forever item data could not be loaded, so no dungeon ranking was calculated."
-    elif not ranked:
-        status = "no_upgrades_found"
-        message = "No usable dungeon drops scored above the currently equipped gear in the catalogued dungeons for this level."
-    else:
-        status = "ready"
-        message = "Ranked by the best stat-weighted upgrade available in each slot. Drop probabilities and run times are not verified, so this is upgrade potential per run, not upgrades per hour."
-    return {
-        "status": status, "message": message, "recommended": ranked[0] if ranked else None,
-        "rankings": ranked[:8], "dungeons_checked": len(catalog_dungeons),
-        "items_evaluated": len(item_data), "scoring": "estimated_class_stat_weights",
-        "catalog_source": CATALOG_SOURCE, "catalog_license": CATALOG_LICENSE,
-        "item_data_sources": sorted({x.get("data_source", "Unknown") for x in item_data.values()}),
-        "drop_rates_available": False, "run_times_available": False,
-    }
