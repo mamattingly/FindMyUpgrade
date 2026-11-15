@@ -87,7 +87,8 @@ jobs:
           if not any(x.get("http_status") == 200 for x in zones):
               raise SystemExit("Thottbot Forever did not return a dungeon zone loot table.")
           PY
-      - name: Verify WarcraftDB Forever tooltip data
+      - name: Probe WarcraftDB Forever tooltip data (optional source)
+        continue-on-error: true
         env:
           APP_URL: https://wow-forever-dungeon-advisor-1zlg.onrender.com
         run: |
