@@ -80,7 +80,7 @@ WEAPON_ALLOW = {
 }
 
 def _stat_key(name: str) -> str | None:
-    n = (name or "").casefold().replace("_", " ")
+    n = (name or "").casefold().replace("_", " ").replace("-", " ")
     if "intellect" in n: return "intellect"
     if "spirit" in n: return "spirit"
     if "stamina" in n: return "stamina"
@@ -112,7 +112,7 @@ def normalise_stats(raw_stats: Any) -> dict[str, float]:
         if not isinstance(stat, dict):
             continue
         typ = stat.get("type") or {}
-        name = stat.get("name") or (typ.get("name") if isinstance(typ, dict) else None)
+        name = stat.get("name") or stat.get("stat") or (typ.get("name") if isinstance(typ, dict) else None)
         value = stat.get("value")
         key = _stat_key(str(name or ""))
         try:
