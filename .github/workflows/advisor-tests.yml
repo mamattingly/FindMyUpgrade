@@ -217,29 +217,34 @@ jobs:
               except Exception as exc:
                   model_asset_checks.append({"path": asset, "error": type(exc).__name__})
 
-          # Wowhead's renderer derives .mo3 IDs from each metadata document's
-          # ModelFiles object; they are not the item display IDs or M2 FileDataIDs.
+          # The renderer requests the model's base ID directly, but for
+          # equipment it resolves ModelFiles[<key>][n].FileDataId. The key
+          # itself is NOT the .mo3 filename.
           mo3_ids = set()
-          def collect_model_file_ids(value, depth=0):
-              if depth > 12:
-                  return
-              if isinstance(value, dict):
-                  for key, child in value.items():
-                      if key == "ModelFiles" and isinstance(child, dict):
-                          for model_id in child.keys():
-                              try:
-                                  if int(model_id) > 0:
-                                      mo3_ids.add(int(model_id))
-                              except (TypeError, ValueError):
-                                  pass
-                      collect_model_file_ids(child, depth + 1)
-              elif isinstance(value, list):
-                  for child in value:
-                      collect_model_file_ids(child, depth + 1)
+          def add_mo3_id(value):
+              try:
+                  number = int(value)
+                  if number > 0:
+                      mo3_ids.add(number)
+              except (TypeError, ValueError):
+                  pass
+
           for document in metadata_documents.values():
-              collect_model_file_ids(document)
+              if not isinstance(document, dict):
+                  continue
+              # Character metadata's Model field is the base character .mo3.
+              add_mo3_id(document.get("Model"))
+              model_files = document.get("ModelFiles") or {}
+              if isinstance(model_files, dict):
+                  for records in model_files.values():
+                      if isinstance(records, dict):
+                          records = [records]
+                      for record in records if isinstance(records, list) else []:
+                          if isinstance(record, dict):
+                              add_mo3_id(record.get("FileDataId"))
+
           mo3_checks = []
-          for model_id in sorted(mo3_ids)[:30]:
+          for model_id in sorted(mo3_ids)[:60]:
               path = f"live/mo3/{model_id}.mo3"
               url = base + "/api/modelviewer/" + path
               try:
@@ -250,6 +255,28 @@ jobs:
                   mo3_checks.append({"path": path, "status": exc.code})
               except Exception as exc:
                   mo3_checks.append({"path": path, "error": type(exc).__name__})
+
+          character_doc = metadata_documents.get(f"live/meta/character/{character_id}.json") or {}
+          print("Character model IDs and gender:",
+              json.dumps({key: character_doc.get(key) for key in
+                          ("Model", "Race", "Gender", "Character", "ComponentModels", "ModelFiles")}, indent=2)[:5000])
+          customization_paths = [
+              f"live/meta/charactercustomization2/{race}_{gender}.json",
+              f"live/meta/charactercustomization2/{character_doc.get('Race')}_{character_doc.get('Gender')}.json",
+              f"live/meta/charactercustomization2/{character_id}.json",
+          ]
+          customization_checks = []
+          for path in dict.fromkeys(customization_paths):
+              url = base + "/api/modelviewer/" + path
+              try:
+                  with urllib.request.urlopen(url, timeout=30) as response:
+                      payload = response.read()
+                      customization_checks.append({"path": path, "status": response.status,
+                          "bytes": len(payload), "top_keys": list(json.loads(payload).keys())[:30]})
+              except urllib.error.HTTPError as exc:
+                  customization_checks.append({"path": path, "status": exc.code})
+              except Exception as exc:
+                  customization_checks.append({"path": path, "error": type(exc).__name__})
 
           def model_refs(value, path="$", out=None, depth=0):
               if out is None:
