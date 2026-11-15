@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from typing import Literal
 from backend.recommendations import DUNGEONS, recommend_dungeons
 
-app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.9.2")
+app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.9.3")
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "frontend" / "dist"
 REGION_LOCALES = {"us": "en_US", "eu": "en_GB", "kr": "ko_KR", "tw": "zh_TW"}
@@ -565,12 +565,18 @@ async def _build_character_model(client, token, region, appearance, race_name=No
         if not isinstance(entry, dict) or not entry.get("id"):
             continue
         try:
-            viewer_slot = int(entry.get("internal_slot_id")) + 1
+            internal_slot_id = int(entry.get("internal_slot_id"))
+            viewer_slot = internal_slot_id + 1
         except (TypeError, ValueError):
             continue
         if viewer_slot in not_displayed:
             continue
-        visible.append({"item_id": int(entry["id"]), "slot": viewer_slot})
+        visible.append({
+            "item_id": int(entry["id"]),
+            "slot": viewer_slot,
+            "internal_slot_id": internal_slot_id,
+            "item_appearance_modifier_id": entry.get("item_appearance_modifier_id"),
+        })
 
     async def resolve_appearance(item):
         data = await _blizzard_static_json(
@@ -659,6 +665,8 @@ async def _build_character_model(client, token, region, appearance, race_name=No
             resolved_appearances.append({
                 "item_id": equipped["item_id"],
                 "slot": equipped["slot"],
+                "internal_slot_id": equipped["internal_slot_id"],
+                "item_appearance_modifier_id": equipped.get("item_appearance_modifier_id"),
                 "display_id": display_id,
                 "source": source,
             })
@@ -675,14 +683,30 @@ async def _build_character_model(client, token, region, appearance, race_name=No
         display_order = choice.get("display_order")
         if option_name and display_order is not None:
             try:
-                customizations.append({
+                customization = {
                     "option_name": str(option_name),
                     "display_order": int(display_order),
-                })
+                }
+                # Preserve Blizzard's canonical IDs as well as the display order.
+                # WoW Model Viewer reads option/choice IDs directly from .chr files.
+                option_id = int(option.get("id") or 0)
+                choice_id = int(choice.get("id") or 0)
+                if option_id > 0 and choice_id > 0:
+                    customization["option_id"] = option_id
+                    customization["choice_id"] = choice_id
+                customizations.append(customization)
             except (TypeError, ValueError):
                 continue
+    playable_class = appearance.get("playable_class") or {}
+    try:
+        playable_class_id = int(playable_class.get("id") or 0) if isinstance(playable_class, dict) else 0
+    except (TypeError, ValueError):
+        playable_class_id = 0
     return {
         "race": int(race_id), "gender": gender_id,
+        # Wow Model Viewer uses the opposite sex numbering to Wowhead's viewer.
+        "wmv_sex": 1 if gender_id == 0 else 0,
+        "playable_class_id": playable_class_id or None,
         "customizations": customizations, "items": items,
         "resolved_item_count": len(items),
         "equipped_visual_item_count": len(visible),
