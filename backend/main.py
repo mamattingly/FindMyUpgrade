@@ -317,7 +317,7 @@ def _csv_field(row, field):
 def _parse_wago_appearance_tables(item_modified_csv, item_appearance_csv):
     """Build ItemID -> ItemDisplayInfoID through the two authoritative DB2 tables."""
     item_to_appearances = {}
-    for row in csv.DictReader(io.StringIO((item_modified_csv or "").lstrip("\\ufeff"))):
+    for row in csv.DictReader(io.StringIO((item_modified_csv or "").lstrip("\ufeff"))):
         try:
             item_id = int(_csv_field(row, "ItemID") or 0)
             appearance_id = int(_csv_field(row, "ItemAppearanceID") or 0)
@@ -328,7 +328,7 @@ def _parse_wago_appearance_tables(item_modified_csv, item_appearance_csv):
             item_to_appearances.setdefault(item_id, []).append((order_index, appearance_id))
 
     appearance_to_display = {}
-    for row in csv.DictReader(io.StringIO((item_appearance_csv or "").lstrip("\\ufeff"))):
+    for row in csv.DictReader(io.StringIO((item_appearance_csv or "").lstrip("\ufeff"))):
         try:
             appearance_id = int(_csv_field(row, "ID") or 0)
             display_id = int(_csv_field(row, "ItemDisplayInfoID") or 0)
@@ -363,7 +363,7 @@ async def _fetch_wago_csv(client, table, build):
         if len(body) > 60 * 1024 * 1024:
             return None, {"table": table, "build": build, "status": 200,
                           "error": "CSV exceeded the 60 MB safety limit", "bytes": len(body)}
-        reader = csv.DictReader(io.StringIO(body.lstrip("\\ufeff")))
+        reader = csv.DictReader(io.StringIO(body.lstrip("\ufeff")))
         fields = reader.fieldnames or []
         return body, {"table": table, "build": build, "status": 200,
                       "bytes": len(response.content), "columns": fields[:30]}
