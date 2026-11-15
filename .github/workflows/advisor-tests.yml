@@ -47,7 +47,7 @@ jobs:
       - name: Wait for this version to reach Render
         env:
           APP_URL: https://wow-forever-dungeon-advisor-1zlg.onrender.com
-          EXPECTED_VERSION: "0.6.8"
+          EXPECTED_VERSION: "0.7.0"
         run: |
           python - <<'PY'
           import json, os, time, urllib.request
@@ -172,4 +172,9 @@ jobs:
               raise SystemExit("Expected Scarlet Monastery Library's Illusionary Rod upgrade was not recognized.")
           if not analysis.get("recommended") or not analysis.get("rankings"):
               raise SystemExit("Live scan did not produce a best-dungeon recommendation.")
+          if not any(x.get("icon_url") for x in gear):
+              raise SystemExit("Live character scan did not return any equipped item icons.")
+          if not any(u.get("icon_url") for dungeon in (analysis.get("rankings") or [])[:1]
+                     for u in (dungeon.get("upgrades") or [])):
+              raise SystemExit("Live dungeon recommendation did not return item icons.")
           PY
