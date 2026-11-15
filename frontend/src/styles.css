@@ -4,3 +4,37 @@
 @media(max-width:640px){.app-shell{padding:0 14px}.topbar{height:64px}.top-caption{display:none}.top-actions select{max-width:180px;font-size:10px}.search-hero{padding:36px 0 25px}.search-hero h1{font-size:43px}.search-controls{display:grid;grid-template-columns:65px 1fr}.search-controls button{grid-column:1/-1;height:42px}.search-foot{font-size:9px}.goal-panel{padding:15px}.goal-options{grid-template-columns:1fr;gap:7px}.goal-option{padding:10px}.section-heading h2{font-size:17px}.recommendation-heading{align-items:flex-end}.live-pill{font-size:9px}.best-card{padding:15px}.best-card h3{font-size:26px}.best-stats b{font-size:17px}.best-stats span{font-size:9px}.loot-heading small{display:none}.loot-extra small{font-size:8px}.side-column{grid-template-columns:1fr}.method-card{grid-column:auto}.gear-grid{grid-template-columns:1fr 1fr}.character-strip{padding:13px}.char-sub{font-size:10px}.armory-link{font-size:0}.armory-link svg{width:17px;height:17px}.footer{font-size:8px}}
 
 .goal-note{margin:12px 0 0;color:#8b9ba8;font-size:10px;line-height:1.5}
+
+/* Quiet graphite theme: fewer borders, one restrained teal accent. */
+:root{color:#e7ebee;background:#101316}
+body{background:#101316}
+.kicker{color:#8faeaa}
+.brand-mark{background:#263936;color:#d4e0dd}
+.search-hero h1 em{color:#a6c0ba}
+.search-card,.goal-panel,.side-card,.best-card,.empty-card,.alternatives,.welcome-panel{background:#171c20;border-color:#293236;box-shadow:none}
+.search-card{background:#181e22}
+.search-controls select,.search-controls input,.top-actions select,.goal-skills input,.profession-inputs input{background:#111619;border-color:#303a3e}
+.search-controls button{background:#9bb8b1;color:#15201e}
+.character-strip{background:#171d20;border-color:#293438}
+.char-avatar{background:#273633;color:#b9d0ca}
+.goal-option,.loot-row,.gear-tile,.profession-inputs label{background:#121719;border-color:#283337}
+.goal-option.active{background:#1c2927;border-color:#59736d;color:#c2d5d0}
+.goal-check{color:#14201e}
+.goal-option.active .goal-check{background:#9bb8b1;border-color:#9bb8b1}
+.best-card{background:#171d20;border-color:#34433f}
+.recommend-label,.armory-link,.best-card-foot a,.text-button,.profession-guides a{color:#a6c0ba}
+.best-stats b{color:#c2d4cf}
+.itemicon{background:#20292c;border-color:#344044}
+.loot-row:hover{border-color:#66817b;transform:none}
+.live-pill i{background:#8bb2a6;box-shadow:none}
+.optional-tag,.level-pill{background:#20282b;border-color:#303c40}
+.character-model{width:116px;height:132px;flex:none;overflow:hidden}
+.character-model-canvas{width:100%;height:100%;position:relative;touch-action:pan-y;cursor:grab}
+.character-model-canvas:active{cursor:grabbing}
+.character-model-canvas canvas{display:block;width:100%;height:100%}
+.model-hint{position:absolute;bottom:3px;left:0;right:0;text-align:center;font-size:7px;letter-spacing:.14em;color:#71827f;pointer-events:none}
+.model-fallback{height:100%;display:grid;place-content:center;justify-items:center;gap:6px;color:#b5c9c3}
+.model-fallback span{font:700 36px Manrope}
+.model-fallback small{font-size:8px;color:#81918e}
+.character-strip{min-height:150px}
+@media(max-width:640px){.character-model{width:88px;height:116px}.character-strip{min-height:125px}}
