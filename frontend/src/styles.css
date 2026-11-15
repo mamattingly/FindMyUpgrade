@@ -558,3 +558,86 @@ body{
  .character-stage .char-name{color:#f3f8f5}
  .character-stage .char-sub{color:#c0d2cb}
 }
+
+
+/* Seamless Armory-inspired interface: content flows on shared surfaces, not nested cards. */
+:root{--ui-ink:#23312f;--ui-muted:#71807b;--ui-line:rgba(55,83,74,.16)}
+.app-shell{max-width:1480px;padding-inline:clamp(16px,3vw,44px)}
+.topbar{background:transparent;border-bottom:1px solid var(--ui-line)}
+.has-character .search-hero{padding:18px 0 14px}
+.has-character .search-card{background:rgba(248,250,249,.88);border:0;border-bottom:2px solid #8ca99d;border-radius:2px;box-shadow:none;backdrop-filter:blur(12px)}
+.has-character .character-stage{
+ display:grid;grid-template-columns:minmax(270px,390px) minmax(0,1fr) auto;
+ min-height:440px;padding:18px 28px;gap:30px;
+ border:0;border-radius:0;box-shadow:none;
+ border-top:1px solid rgba(207,226,216,.24);
+ border-bottom:1px solid rgba(207,226,216,.24);
+}
+.has-character .character-stage-art{min-height:400px}
+.has-character .character-model{height:400px}
+.has-character .character-stage .char-name{font-size:clamp(34px,4vw,54px)}
+/* Make the recommendations read as one editorial workspace. */
+.recommendation-layout{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(270px,.78fr);gap:clamp(24px,4vw,58px);align-items:start}
+.recommendation-heading{padding:0 0 12px;border-bottom:1px solid var(--ui-line);margin-bottom:18px}
+.section-heading h2{font-size:clamp(22px,2.2vw,29px);letter-spacing:-.045em}
+.best-card,.side-card,.alternatives,.empty-card,.welcome-panel{
+ background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important;
+}
+.best-card{padding:0!important}
+.best-card-top{padding-bottom:10px;border-bottom:1px solid var(--ui-line)}
+.best-card h3{font-size:clamp(30px,3vw,40px);letter-spacing:-.05em;margin:18px 0 8px}
+.best-summary{max-width:760px;font-size:13px;line-height:1.7}
+.best-stats{display:flex;gap:clamp(24px,5vw,64px);padding:18px 0;margin:18px 0;border-top:1px solid var(--ui-line);border-bottom:1px solid var(--ui-line)}
+.best-stats>div{min-width:90px}
+.best-stats b{font-size:25px}
+.loot-heading{display:flex;align-items:baseline;justify-content:space-between;padding:4px 0 12px;border-bottom:1px solid var(--ui-line)}
+.upgrade-stat-filter{background:transparent!important;border:0!important;border-bottom:1px solid var(--ui-line)!important;border-radius:0!important;padding:14px 0!important;margin:0!important}
+.loot-list{gap:0}
+.loot-row{
+ display:grid;grid-template-columns:48px minmax(0,1fr) auto;align-items:center;
+ padding:14px 4px!important;background:transparent!important;border:0!important;
+ border-bottom:1px solid var(--ui-line)!important;border-radius:0!important;box-shadow:none!important;
+ transition:background .16s ease,padding .16s ease;
+}
+.loot-row:hover{background:rgba(66,116,98,.055)!important;padding-inline:10px!important;transform:none!important;box-shadow:none!important}
+.loot-row>.itemicon{width:42px;height:42px;border-radius:7px}
+.loot-main>b{font-size:13px}
+.upgrade-comparison{background:transparent!important;border:0!important;border-left:2px solid #a8c1b6!important;border-radius:0!important;padding:8px 0 8px 12px!important;margin-top:8px}
+.comparison-stat{border-color:var(--ui-line)}
+.best-card-foot{padding:14px 0;border-top:1px solid var(--ui-line)}
+.side-column{gap:22px}
+.side-card{padding:0!important}
+.side-card h3{font-size:22px;margin:8px 0 2px}
+.gear-count{padding-bottom:12px;border-bottom:1px solid var(--ui-line)}
+.gear-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
+.gear-tile{
+ display:flex;align-items:center;gap:9px;padding:10px 0!important;
+ background:transparent!important;border:0!important;border-bottom:1px solid var(--ui-line)!important;border-radius:0!important;
+}
+.gear-tile:hover{background:rgba(66,116,98,.05)!important}
+.gear-tile .itemicon{width:36px;height:36px;flex:none}
+.gear-info>b{font-size:10px}
+.profession-details{border-top:1px solid var(--ui-line)!important;border-bottom:1px solid var(--ui-line)!important;padding:4px 0!important}
+.profession-details summary{padding:14px 0!important}
+.method-card{border-top:1px solid var(--ui-line)!important;padding:14px 0!important}
+.alternatives{padding:20px 0!important;border-top:1px solid var(--ui-line)!important}
+.alternative-row{padding:12px 0}
+.goal-panel,.run-log-panel{background:transparent!important;border:0!important;border-top:1px solid var(--ui-line)!important;border-bottom:1px solid var(--ui-line)!important;border-radius:0!important;box-shadow:none!important}
+.secondary-summary{padding:13px 0}
+.secondary-settings-body{padding:0 0 16px}
+.footer{border-top:1px solid var(--ui-line)}
+/* Keep only actions and selected states visibly button-like. */
+button,.armory-link,.native-export,.refresh-character{box-shadow:none}
+.notice{border-radius:2px;box-shadow:none}
+@media(max-width:980px){.recommendation-layout{grid-template-columns:1fr}.side-column{grid-template-columns:1fr 1fr;gap:24px}}
+@media(max-width:600px){
+ .has-character .character-stage{grid-template-columns:1fr;padding:10px 0;min-height:0}
+ .has-character .character-stage-art{min-height:300px}
+ .has-character .character-model{height:300px}
+ .best-stats{gap:18px;justify-content:space-between}
+ .best-stats b{font-size:21px}
+ .gear-grid{grid-template-columns:1fr 1fr}
+ .side-column{grid-template-columns:1fr}
+ .loot-row{grid-template-columns:40px minmax(0,1fr) auto}
+ .loot-row>.itemicon{width:36px;height:36px}
+}
