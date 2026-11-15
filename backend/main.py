@@ -393,34 +393,11 @@ async def _wowhead_item_icon(client, item_id):
         icon_url = data.get("iconUrl") if isinstance(data, dict) else None
         if not icon_url and isinstance(icon, str) and re.fullmatch(r"[a-z0-9_]+", icon, re.I):
             icon_url = f"https://wow.zamimg.com/images/wow/icons/large/{icon}.jpg"
-        ITEM_ICON_CACHE[item_id] = icon_url
+        if icon_url:
+            ITEM_ICON_CACHE[item_id] = icon_url
         return icon_url
     except (httpx.HTTPError, ValueError, TypeError):
-        ITEM_ICON_CACHE[item_id] = None
         return None
-
-
-async def _attach_item_icons(client, gear, recommendations):
-    gear_ids = [int(item["id"]) for item in gear if item.get("id")]
-    recommendation_ids = [
-        int(item["item_id"])
-        for dungeon in (recommendations.get("rankings") or [])[:1]
-        for item in (dungeon.get("upgrades") or [])
-        if item.get("item_id")
-    ]
-    ids = list(dict.fromkeys(gear_ids + recommendation_ids))
-    semaphore = asyncio.Semaphore(8)
-    async def load(item_id):
-        async with semaphore:
-            return item_id, await _wowhead_item_icon(client, item_id)
-    icons = dict(await asyncio.gather(*(load(item_id) for item_id in ids)))
-    for item in gear:
-        if item.get("id"):
-            item["icon_url"] = icons.get(int(item["id"]))
-    for dungeon in (recommendations.get("rankings") or [])[:1]:
-        for item in (dungeon.get("upgrades") or []):
-            if item.get("item_id"):
-                item["icon_url"] = icons.get(int(item["item_id"]))
 
 
 async def _thottbot_item_data(client, item_id):
