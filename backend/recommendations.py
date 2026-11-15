@@ -366,6 +366,18 @@ def recommend_dungeons(character: dict[str, Any], gear: list[dict[str, Any]],
                         or _clean_source_name(boss_name) in _clean_source_name(drop_source)
                     )
                     drop_chance = item.get("drop_chance") if source_matches else None
+                if key in ("Ring", "Trinket"):
+                    comparison_items = [min(equipped, key=lambda x: x[0])[1]] if len(equipped) >= 2 else []
+                elif inventory_type in ("two-hand", "two hand"):
+                    comparison_items = [x[1] for slot_name in ("Main Hand", "Off Hand")
+                                         for x in current.get(slot_name, [])]
+                else:
+                    comparison_items = [max(equipped, key=lambda x: x[0])[1]] if equipped else []
+                equipped_items = [{
+                    "id": old.get("id"), "name": old.get("name"), "slot": old.get("slot"),
+                    "item_level": old.get("item_level"), "stats": old.get("stats") or [],
+                    "armor": old.get("armor"), "weapon_dps": old.get("weapon_dps"),
+                } for old in comparison_items]
                 candidate = {
                     "slot": key, "item_id": int(item_id), "name": item.get("name"),
                     "item_level": item.get("item_level"), "required_level": item.get("required_level"),
@@ -375,6 +387,8 @@ def recommend_dungeons(character: dict[str, Any], gear: list[dict[str, Any]],
                     "drop_chance": drop_chance,
                     "drop_rate_verified": drop_chance is not None, "drop_observed": observed, "drop_encounters": encounters,
                     "stats": relevant_item_stats(item, class_name, spec),
+                    "stat_values": item.get("stats") or [],
+                    "equipped_items": equipped_items,
                 }
                 possible_upgrades.append(candidate)
                 slot_candidates.setdefault(key, []).append(candidate)
