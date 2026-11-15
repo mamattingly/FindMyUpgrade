@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from typing import Literal
 from backend.recommendations import DUNGEONS, recommend_dungeons
 
-app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.8.4")
+app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.8.5")
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "frontend" / "dist"
 REGION_LOCALES = {"us": "en_US", "eu": "en_GB", "kr": "ko_KR", "tw": "zh_TW"}
@@ -214,19 +214,14 @@ def _appearance_gender_id(gender):
     return None
 
 
-async def _blizzard_static_json(client, token, region, path, legacy=False, required_field=None):
+async def _blizzard_static_json(client, token, region, path, required_field=None):
     """Fetch a model-data field from the best matching Blizzard static namespace."""
     forever_first = (
         f"static-forever-{region}",
         f"static-classic1x-{region}",
         f"static-classic-{region}",
     )
-    classic_first = (
-        f"static-classic1x-{region}",
-        f"static-classic-{region}",
-        f"static-forever-{region}",
-    )
-    namespaces = classic_first if legacy else forever_first
+    namespaces = forever_first
     for namespace in namespaces:
         try:
             response = await client.get(
@@ -280,7 +275,7 @@ async def _build_character_model(client, token, region, appearance, race_name=No
     async def resolve_appearance(item):
         data = await _blizzard_static_json(
             client, token, region, f"data/wow/item/{item['item_id']}",
-            legacy=item["item_id"] < 100000, required_field="appearances")
+            required_field="appearances")
         appearances = (data or {}).get("appearances") or []
         if not appearances or not isinstance(appearances[0], dict):
             return None
@@ -291,12 +286,12 @@ async def _build_character_model(client, token, region, appearance, race_name=No
 
     appearance_ids = await asyncio.gather(*(resolve_appearance(item) for item in visible))
 
-    async def resolve_display_id(appearance_id, legacy=False):
+    async def resolve_display_id(appearance_id):
         if not appearance_id:
             return None
         data = await _blizzard_static_json(
             client, token, region, f"data/wow/item-appearance/{int(appearance_id)}",
-            legacy=legacy, required_field="item_display_info_id")
+            required_field="item_display_info_id")
         display_id = (data or {}).get("item_display_info_id")
         try:
             value = int(display_id)
@@ -304,10 +299,7 @@ async def _build_character_model(client, token, region, appearance, race_name=No
         except (TypeError, ValueError):
             return None
 
-    display_ids = await asyncio.gather(*(
-        resolve_display_id(app_id, item["item_id"] < 100000)
-        for item, app_id in zip(visible, appearance_ids)
-    ))
+    display_ids = await asyncio.gather(*(resolve_display_id(app_id) for app_id in appearance_ids))
     items = []
     missing = []
     for equipped, display_id in zip(visible, display_ids):
