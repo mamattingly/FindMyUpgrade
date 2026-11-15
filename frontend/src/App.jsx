@@ -69,7 +69,9 @@ export default function App(){
  const [region,setRegion]=useState(()=>localStorage.getItem(REGION_KEY)||"us");
  const [name,setName]=useState(""),[busy,setBusy]=useState(false),[message,setMessage]=useState(""),[active,setActive]=useState(0);
  const [skills,setSkills]=useState(()=>read(SKILL_KEY,{}));
- const [goals,setGoals]=useState(()=>read(GOALS_KEY,{gear:true,tailoring:false,enchanting:false,mustGrantXp:false}));\n const [xpMobLevels,setXpMobLevels]=useState(()=>read(XP_CACHE_KEY,null)?.data||{});\n const [xpLoading,setXpLoading]=useState(false);
+ const [goals,setGoals]=useState(()=>read(GOALS_KEY,{gear:true,tailoring:false,enchanting:false,mustGrantXp:false}));
+ const [xpMobLevels,setXpMobLevels]=useState(()=>read(XP_CACHE_KEY,null)?.data||{});
+ const [xpLoading,setXpLoading]=useState(false);
  const [runLogs,setRunLogs]=useState(()=>read(RUNS_KEY,[]));
  const [runDungeon,setRunDungeon]=useState("");
  const [runMinutes,setRunMinutes]=useState("30");
@@ -83,7 +85,8 @@ export default function App(){
  useEffect(()=>localStorage.setItem(RUNS_KEY,JSON.stringify(runLogs)),[runLogs]);
  const current=profiles[active],skillKey=current?current.region+":"+current.name.toLowerCase():"";
  const currentSkills=skills[skillKey]||{},gear=useMemo(()=>current?.gear||[],[current]);
- const baseRec=current?.recommendations;\n const dungeonNames=baseRec?.rankings?.map(d=>d.name)||[];
+ const baseRec=current?.recommendations;
+ const dungeonNames=baseRec?.rankings?.map(d=>d.name)||[];
  const characterRuns=runLogs.filter(r=>r.characterKey===skillKey);
  const farmRanking=rankFarmDungeons(baseRec?.rankings,characterRuns,goals);
  const rec=baseRec?{...baseRec,rankings:farmRanking.rankings,recommended:farmRanking.rankings[0]||baseRec.recommended}:null;
@@ -153,9 +156,11 @@ export default function App(){
     <div className="goal-options">
      <div className="goal-option active"><span className="goal-check">✓</span><Shield size={18}/><span><b>Gear upgrades</b><small>Always included</small></span></div>
      <button className={"goal-option "+(goals.tailoring?"active":"")} onClick={()=>toggleGoal("tailoring")}><span className="goal-check">{goals.tailoring?"✓":""}</span><Package size={18}/><span><b>Tailoring</b><small>Cloth & skill progress</small></span></button>
-     <button className={"goal-option "+(goals.enchanting?"active":"")} onClick={()=>toggleGoal("enchanting")}><span className="goal-check">{goals.enchanting?"✓":""}</span><Sparkles size={18}/><span><b>Enchanting</b><small>Disenchantable loot</small></span></button>\n     <button className={"goal-option "+(goals.mustGrantXp?"active":"")} onClick={()=>toggleGoal("mustGrantXp")}><span className="goal-check">{goals.mustGrantXp?"✓":""}</span><Target size={18}/><span><b>Dungeons grant XP</b><small>{xpLoading?"Loading Forever NPCs…":"Most mobs must award XP"}</small></span></button>
+     <button className={"goal-option "+(goals.enchanting?"active":"")} onClick={()=>toggleGoal("enchanting")}><span className="goal-check">{goals.enchanting?"✓":""}</span><Sparkles size={18}/><span><b>Enchanting</b><small>Disenchantable loot</small></span></button>
+     <button className={"goal-option "+(goals.mustGrantXp?"active":"")} onClick={()=>toggleGoal("mustGrantXp")}><span className="goal-check">{goals.mustGrantXp?"✓":""}</span><Target size={18}/><span><b>Dungeons grant XP</b><small>{xpLoading?"Loading Forever NPCs…":"Most mobs must award XP"}</small></span></button>
     </div>
-    {goals.mustGrantXp&&<p className="goal-note">{xpLoading?"Loading current WoW Forever creature levels…":`XP filter: more than half of recorded dungeon mobs must be above the gray-level cutoff. ${xpQualified.length} dungeons currently qualify; dungeons with fewer than five recorded NPCs are excluded.`}</p>}\n    {(goals.tailoring||goals.enchanting)&&<p className="goal-note">Selected profession goals now influence the ranking using your logged cloth and eligible disenchantable-item yields per hour. Record runs below; unverified global drop rates are never assumed.</p>}
+    {goals.mustGrantXp&&<p className="goal-note">{xpLoading?"Loading current WoW Forever creature levels…":`XP filter: more than half of recorded dungeon mobs must be above the gray-level cutoff. ${xpQualified.length} dungeons currently qualify; dungeons with fewer than five recorded NPCs are excluded.`}</p>}
+    {(goals.tailoring||goals.enchanting)&&<p className="goal-note">Selected profession goals now influence the ranking using your logged cloth and eligible disenchantable-item yields per hour. Record runs below; unverified global drop rates are never assumed.</p>}
     {(goals.tailoring||goals.enchanting)&&<div className="goal-skills">{["Tailoring","Enchanting"].filter(p=>goals[p.toLowerCase()]).map(p=><label key={p}>{p} skill<input type="number" min="0" max="300" value={Number(currentSkills[p]??current.professions?.find(x=>x.name===p)?.skill??0)} onChange={e=>setSkill(p,e.target.value)}/><span>/ 300</span></label>)}</div>}
    </section>
    <section className="run-log-panel">
