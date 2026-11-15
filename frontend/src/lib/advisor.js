@@ -1,6 +1,11 @@
-// Shared, pure advisor logic and browser persistence helpers.
+export const KEY="wow-forever-advisor-profiles", REGION_KEY="wow-forever-advisor-region", SKILL_KEY="wow-forever-profession-skills";
+export const GOALS_KEY="wow-forever-farming-goals", RUNS_KEY="wow-forever-dungeon-runs";
+export const NAMES=["Alchemy","Blacksmithing","Enchanting","Engineering","Herbalism","Leatherworking","Mining","Skinning","Tailoring","Cooking","First Aid","Fishing"];
+export const SOURCES={Alchemy:"https://www.60.tools/guides/alchemy-leveling-guide",Blacksmithing:"https://www.60.tools/guides/blacksmithing-leveling-guide",Enchanting:"https://www.60.tools/guides/enchanting-leveling-guide",Engineering:"https://www.60.tools/guides/engineering-leveling-guide",Herbalism:"https://www.60.tools/guides/herbalism-leveling-guide",Leatherworking:"https://www.60.tools/guides/leatherworking-leveling-guide",Mining:"https://www.60.tools/guides/mining-leveling-guide",Skinning:"https://www.60.tools/guides/skinning-leveling-guide",Tailoring:"https://www.60.tools/guides/tailoring-leveling-guide",Cooking:"https://www.60.tools/guides/cooking-leveling-guide","First Aid":"https://www.60.tools/guides/first-aid-leveling-guide",Fishing:"https://www.60.tools/guides/fishing-leveling-guide"};
+export const iconFallback="https://wow.zamimg.com/images/wow/icons/large/inv_misc_questionmark.jpg";
 export const XP_CACHE_KEY="wow-forever-dungeon-xp-cache";
-function grayMobThreshold(level){const n=Math.max(1,Number(level)||1);if(n<=5)return 0;if(n<=39)return n-5-Math.floor(n/10);return n-9;}
+export const read=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key)||JSON.stringify(fallback))}catch{return fallback}};
+export function grayMobThreshold(level){const n=Math.max(1,Number(level)||1);if(n<=5)return 0;if(n<=39)return n-5-Math.floor(n/10);return n-9;}
 export async function loadForeverDungeonXp(dungeonNames){
  const cached=read(XP_CACHE_KEY,null);
  if(cached&&Date.now()-cached.savedAt<6*60*60*1000)return cached.data;
