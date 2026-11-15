@@ -441,30 +441,34 @@ async def _static_item_data(client, token, region, item_id, semaphore):
         return ITEM_CACHE[cache_key]
     async with semaphore:
         try:
-            # Thottbot Forever provides structured item stats and, when
-            # observed, source-specific drop chances and sample counts.
+            # 1) Thottbot Forever structured records, including observed sources.
             thottbot = await _thottbot_item_data(client, item_id)
             if thottbot and (thottbot.get("stats") or thottbot.get("armor") or thottbot.get("weapon_dps")):
                 ITEM_CACHE[cache_key] = thottbot
                 return thottbot
-            # WarcraftDB serves a lightweight Forever-specific tooltip API.
-            # It is a secondary source when Thottbot has no record.
-            warcraftdb = await _warcraftdb_item_data(client, item_id)
-            if warcraftdb.get("parsed"):
-                ITEM_CACHE[cache_key] = warcraftdb
-                return warcraftdb
-            # Wowhead is a secondary source for item tooltip and drop chance.
+
+            # 2) Wowhead's Forever tooltip API (dataEnv=16) has the exact
+            # Forever item revision and often includes the source drop chance.
             wowhead = await _wowhead_item_data(client, item_id)
             if wowhead.get("parsed") and wowhead.get("name") and wowhead.get("stats"):
                 ITEM_CACHE[cache_key] = wowhead
                 return wowhead
 
+            # 3) Blizzard Forever static first, then Classic Era metadata as a
+            # clearly-labelled fallback for legacy items absent from Forever.
             blizzard_result = None
-            url = f"https://{region}.api.blizzard.com/data/wow/item/{int(item_id)}"
-            response = await client.get(url,
-                params={"namespace": f"static-forever-{region}", "locale": REGION_LOCALES[region]},
-                headers={"Authorization": f"Bearer {token}"}, timeout=8)
-            if response.status_code == 200:
+            namespaces = (
+                (f"static-forever-{region}", "Blizzard Forever"),
+                (f"static-classic1x-{region}", "Blizzard Classic Era fallback"),
+                (f"static-classic-{region}", "Blizzard Classic fallback"),
+            )
+            for namespace, source_label in namespaces:
+                response = await client.get(
+                    f"https://{region}.api.blizzard.com/data/wow/item/{int(item_id)}",
+                    params={"namespace": namespace, "locale": REGION_LOCALES[region]},
+                    headers={"Authorization": f"Bearer {token}"}, timeout=8)
+                if response.status_code != 200:
+                    continue
                 data = response.json()
                 preview = data.get("preview_item") or {}
                 raw_stats = preview.get("stats") or data.get("stats") or []
@@ -479,9 +483,7 @@ async def _static_item_data(client, token, region, item_id, semaphore):
                     display = (stat.get("display") or {}).get("display_string") if isinstance(stat.get("display"), dict) else None
                     if display:
                         stats_display.append(display)
-                item_level = (preview.get("level") or {}).get("value")
-                if item_level is None:
-                    item_level = _numeric_value(data.get("level"))
+                item_level = _numeric_value(preview.get("level") or data.get("level"))
                 armor = preview.get("armor") or data.get("armor") or {}
                 weapon = preview.get("weapon") or data.get("weapon") or {}
                 dps = weapon.get("dps") or {}
@@ -494,21 +496,31 @@ async def _static_item_data(client, token, region, item_id, semaphore):
                     "item_level": item_level, "stats": stats, "stats_display": stats_display,
                     "armor": _numeric_value(armor), "weapon_dps": _numeric_value(dps),
                     "data_url": f"https://www.wowhead.com/forever/item={int(item_id)}",
-                    "data_source": "Blizzard",
+                    "data_source": source_label,
                 }
-            # Fallback for older item IDs absent from Blizzard's static namespace.
+                if wowhead.get("parsed"):
+                    blizzard_result["drop_chance"] = wowhead.get("drop_chance")
+                    blizzard_result["drop_source_name"] = wowhead.get("drop_source_name")
+                if blizzard_result.get("name") and (stats or blizzard_result.get("armor") or blizzard_result.get("weapon_dps")):
+                    ITEM_CACHE[cache_key] = blizzard_result
+                    return blizzard_result
+
+            # 4) Public item APIs as last-resort fallbacks for custom items.
             twdb = await client.get(f"https://thewowdb.com/api/v1/forever/item/{int(item_id)}",
                 headers={"User-Agent": "WoWForeverDungeonAdvisor/0.5 (+https://github.com/mamattingly/FindMyUpgrade)",
                          "Accept": "application/json"}, timeout=8)
-            twdb_result = _normalise_thewowdb_item(twdb.json(), item_id) if twdb.status_code == 200 else None
-            result = blizzard_result or (twdb_result if twdb_result and twdb_result.get("name") else None)
-            if result and wowhead.get("parsed"):
-                result["drop_chance"] = wowhead.get("drop_chance")
-                result["drop_source_name"] = wowhead.get("drop_source_name")
-                result["data_url"] = wowhead.get("data_url")
-            if result and result.get("name") and (result.get("stats") or result.get("armor") or result.get("weapon_dps")):
-                ITEM_CACHE[cache_key] = result
-                return result
+            if twdb.status_code == 200:
+                candidate = _normalise_thewowdb_item(twdb.json(), item_id)
+                if candidate.get("name") and (candidate.get("stats") or candidate.get("armor") or candidate.get("weapon_dps")):
+                    if wowhead.get("parsed"):
+                        candidate["drop_chance"] = wowhead.get("drop_chance")
+                        candidate["drop_source_name"] = wowhead.get("drop_source_name")
+                    ITEM_CACHE[cache_key] = candidate
+                    return candidate
+            warcraftdb = await _warcraftdb_item_data(client, item_id)
+            if warcraftdb.get("parsed"):
+                ITEM_CACHE[cache_key] = warcraftdb
+                return warcraftdb
             ITEM_CACHE[cache_key] = None
             return None
         except (httpx.HTTPError, ValueError, TypeError, KeyError):
