@@ -1275,11 +1275,11 @@ def _modelviewer_asset_candidates(viewer_flavor, clean):
         candidates.append(f"https://wow.zamimg.com/modelviewer/{flavor}/{clean}")
         # Character equipment uses legacy armor-slot metadata in Classic. Newer
         # data packs expose the same item appearance metadata under meta/item.
-        match = re.fullmatch(r"meta/armor/(21|22)/(\\d+)\\.json", clean)
+        match = re.fullmatch(r"meta/armor/(21|22)/(\d+)\.json", clean)
         if match:
             candidates.append(
                 f"https://wow.zamimg.com/modelviewer/{flavor}/meta/item/{match.group(2)}.json")
-        match = re.fullmatch(r"meta/armor/5/(\\d+)\\.json", clean)
+        match = re.fullmatch(r"meta/armor/5/(\d+)\.json", clean)
         if match:
             candidates.append(
                 f"https://wow.zamimg.com/modelviewer/{flavor}/meta/armor/20/{match.group(1)}.json")
