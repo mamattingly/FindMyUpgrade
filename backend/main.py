@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from typing import Literal
 
-app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.4.2")
+app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.4.3")
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "frontend" / "dist"
 REGION_LOCALES = {"us": "en_US", "eu": "en_GB", "kr": "ko_KR", "tw": "zh_TW"}
@@ -111,7 +111,9 @@ def _gear_from_api(data):
         item, slot = entry.get("item") or {}, entry.get("slot") or {}
         level = entry.get("level")
         result.append({"slot": slot.get("name") or slot.get("type", {}).get("name") or "Unknown slot",
-            "name": item.get("name") or "Unknown item",
+            # Forever returns the display name on the equipped_items entry;
+            # entry.item contains only the item id and resource key.
+            "name": entry.get("name") or item.get("name") or "Unknown item",
             "item_level": level.get("value") if isinstance(level, dict) else level,
             "quality": (entry.get("quality") or {}).get("name"), "id": item.get("id")})
     return result
