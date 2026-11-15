@@ -2,7 +2,7 @@ import {useEffect,useMemo,useState} from "react";
 import {Search,ChevronDown,ExternalLink,Shield,Compass,BookOpen,Sparkles,Target,Package} from "lucide-react";
 import CharacterModel from "./CharacterModel.jsx";
 const KEY="wow-forever-advisor-profiles", REGION_KEY="wow-forever-advisor-region", SKILL_KEY="wow-forever-profession-skills";
-const GOALS_KEY="wow-forever-farming-goals";
+const GOALS_KEY="wow-forever-farming-goals", RUNS_KEY="wow-forever-dungeon-runs";
 const NAMES=["Alchemy","Blacksmithing","Enchanting","Engineering","Herbalism","Leatherworking","Mining","Skinning","Tailoring","Cooking","First Aid","Fishing"];
 const SOURCES={Alchemy:"https://www.60.tools/guides/alchemy-leveling-guide",Blacksmithing:"https://www.60.tools/guides/blacksmithing-leveling-guide",Enchanting:"https://www.60.tools/guides/enchanting-leveling-guide",Engineering:"https://www.60.tools/guides/engineering-leveling-guide",Herbalism:"https://www.60.tools/guides/herbalism-leveling-guide",Leatherworking:"https://www.60.tools/guides/leatherworking-leveling-guide",Mining:"https://www.60.tools/guides/mining-leveling-guide",Skinning:"https://www.60.tools/guides/skinning-leveling-guide",Tailoring:"https://www.60.tools/guides/tailoring-leveling-guide",Cooking:"https://www.60.tools/guides/cooking-leveling-guide","First Aid":"https://www.60.tools/guides/first-aid-leveling-guide",Fishing:"https://www.60.tools/guides/fishing-leveling-guide"};
 const read=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key)||JSON.stringify(fallback))}catch{return fallback}};
@@ -24,6 +24,21 @@ function relevantStats(stats,className,spec){
   return !/spell damage|spell power|healing/.test(n);
  }).map(s=>(s.value>0?"+":"")+s.value+" "+s.name);
 }
+
+function rankFarmDungeons(rankings,logs,goals){
+ if(!rankings?.length)return {rankings:[],measured:false,missingGoals:[]};
+ const byDungeon=new Map();
+ for(const run of logs||[]){if(!byDungeon.has(run.dungeon))byDungeon.set(run.dungeon,[]);byDungeon.get(run.dungeon).push(run);}
+ const measured=byDungeon.size>0;
+ const active=[{key:'gear',enabled:true},{key:'tailoring',enabled:!!goals.tailoring},{key:'enchanting',enabled:!!goals.enchanting}].filter(x=>x.enabled);
+ const missingGoals=active.filter(x=>x.key!=='gear'&&![...byDungeon.values()].some(rows=>rows.some(r=>x.key==='tailoring'?Number(r.cloth)>0:Number(r.disenchantables)>0))).map(x=>x.key);
+ const rows=rankings.map(d=>{const runs=byDungeon.get(d.name)||[];if(!runs.length)return {...d,sampleCount:0};const minutes=runs.reduce((n,r)=>n+Number(r.minutes||0),0)/runs.length;const cloth=runs.reduce((n,r)=>n+Number(r.cloth||0),0)/runs.length;const disenchantables=runs.reduce((n,r)=>n+Number(r.disenchantables||0),0)/runs.length;return {...d,sampleCount:runs.length,avgMinutes:minutes,gearPerHour:minutes>0?Number(d.score||0)*60/minutes:0,clothPerHour:minutes>0?cloth*60/minutes:0,disenchantablesPerHour:minutes>0?disenchantables*60/minutes:0};});
+ const useMeasured=measured;
+ const candidates=useMeasured?rows.filter(d=>d.sampleCount>0):rows;
+ const metrics=active.map(x=>({key:x.key,max:Math.max(0,...candidates.map(d=>x.key==='gear'?(d.gearPerHour??Number(d.score||0)):x.key==='tailoring'?(d.clothPerHour||0):(d.disenchantablesPerHour||0)))}));
+ const scored=candidates.map(d=>{const components=metrics.map(m=>{const value=m.key==='gear'?(d.gearPerHour??Number(d.score||0)):m.key==='tailoring'?(d.clothPerHour||0):(d.disenchantablesPerHour||0);return m.max>0?value/m.max:0;});return {...d,farmScore:components.length?components.reduce((a,b)=>a+b,0)/components.length:0,measured:!!d.sampleCount};}).sort((a,b)=>b.farmScore-a.farmScore);
+ return {rankings:scored,measured:useMeasured,missingGoals};
+}
 function StatLine({stats}){if(!stats?.length)return null;return <div className="statline">{stats.map((s,i)=><span key={i}>{s}</span>)}</div>}
 export default function App(){
  const [profiles,setProfiles]=useState(()=>read(KEY,[]).filter(p=>p&&p.name&&p.class&&p.class!=="Unknown"&&Number.isFinite(p.level)));
@@ -31,14 +46,25 @@ export default function App(){
  const [name,setName]=useState(""),[busy,setBusy]=useState(false),[message,setMessage]=useState(""),[active,setActive]=useState(0);
  const [skills,setSkills]=useState(()=>read(SKILL_KEY,{}));
  const [goals,setGoals]=useState(()=>read(GOALS_KEY,{gear:true,tailoring:false,enchanting:false}));
+ const [runLogs,setRunLogs]=useState(()=>read(RUNS_KEY,[]));
+ const [runDungeon,setRunDungeon]=useState("");
+ const [runMinutes,setRunMinutes]=useState("30");
+ const [runCloth,setRunCloth]=useState("0");
+ const [runDisenchantables,setRunDisenchantables]=useState("0");
  const [showAllSkills,setShowAllSkills]=useState(false);
  useEffect(()=>localStorage.setItem(KEY,JSON.stringify(profiles)),[profiles]);
  useEffect(()=>localStorage.setItem(REGION_KEY,region),[region]);
  useEffect(()=>localStorage.setItem(SKILL_KEY,JSON.stringify(skills)),[skills]);
  useEffect(()=>localStorage.setItem(GOALS_KEY,JSON.stringify(goals)),[goals]);
+ useEffect(()=>localStorage.setItem(RUNS_KEY,JSON.stringify(runLogs)),[runLogs]);
  const current=profiles[active],skillKey=current?current.region+":"+current.name.toLowerCase():"";
  const currentSkills=skills[skillKey]||{},gear=useMemo(()=>current?.gear||[],[current]);
- const rec=current?.recommendations,best=rec?.recommended;
+ const baseRec=current?.recommendations;
+ const characterRuns=runLogs.filter(r=>r.characterKey===skillKey);
+ const farmRanking=rankFarmDungeons(baseRec?.rankings,characterRuns,goals);
+ const rec=baseRec?{...baseRec,rankings:farmRanking.rankings,recommended:farmRanking.rankings[0]||baseRec.recommended}:null;
+ const best=rec?.recommended;
+ function saveRun(e){e.preventDefault();if(!runDungeon)return;const minutes=Math.max(1,Math.min(600,Number(runMinutes)||1));setRunLogs(old=>[{id:crypto.randomUUID(),characterKey:skillKey,dungeon:runDungeon,minutes,cloth:Math.max(0,Number(runCloth)||0),disenchantables:Math.max(0,Number(runDisenchantables)||0),createdAt:new Date().toISOString()},...old].slice(0,500));setMessage("Dungeon run saved. Recommendations recalculated from your recorded yields.");}
  async function scan(characterName=name,characterRegion=region){
   if(characterName.trim().split(/\s+/).length!==2){setMessage("Enter the character's first and last name.");return}
   setBusy(true);setMessage("");
@@ -105,23 +131,36 @@ export default function App(){
      <button className={"goal-option "+(goals.tailoring?"active":"")} onClick={()=>toggleGoal("tailoring")}><span className="goal-check">{goals.tailoring?"✓":""}</span><Package size={18}/><span><b>Tailoring</b><small>Cloth & skill progress</small></span></button>
      <button className={"goal-option "+(goals.enchanting?"active":"")} onClick={()=>toggleGoal("enchanting")}><span className="goal-check">{goals.enchanting?"✓":""}</span><Sparkles size={18}/><span><b>Enchanting</b><small>Disenchantable loot</small></span></button>
     </div>
-    {(goals.tailoring||goals.enchanting)&&<p className="goal-note">Profession skills are saved with this character. Profession material values are being added after drop-source validation; they do not affect the current dungeon ranking yet.</p>}
+    {(goals.tailoring||goals.enchanting)&&<p className="goal-note">Selected profession goals now influence the ranking using your logged cloth and eligible disenchantable-item yields per hour. Record runs below; unverified global drop rates are never assumed.</p>}
     {(goals.tailoring||goals.enchanting)&&<div className="goal-skills">{["Tailoring","Enchanting"].filter(p=>goals[p.toLowerCase()]).map(p=><label key={p}>{p} skill<input type="number" min="0" max="300" value={Number(currentSkills[p]??current.professions?.find(x=>x.name===p)?.skill??0)} onChange={e=>setSkill(p,e.target.value)}/><span>/ 300</span></label>)}</div>}
+   </section>
+   <section className="run-log-panel">
+    <div className="run-log-heading"><div><div className="kicker">PERSONAL FARM DATA</div><h3>Log a dungeon run</h3><p>Record your actual clear time and yields. These measurements improve recommendations for this character only.</p></div><span className="run-count">{characterRuns.length} runs saved</span></div>
+    <form className="run-log-form" onSubmit={saveRun}>
+     <label>Dungeon<select required value={runDungeon} onChange={e=>setRunDungeon(e.target.value)}><option value="">Choose dungeon</option>{(baseRec?.rankings||[]).map(d=><option key={d.name} value={d.name}>{d.name}</option>)}</select></label>
+     <label>Minutes<input type="number" min="1" max="600" value={runMinutes} onChange={e=>setRunMinutes(e.target.value)} required/></label>
+     <label>Cloth collected<input type="number" min="0" value={runCloth} onChange={e=>setRunCloth(e.target.value)}/></label>
+     <label>Eligible items for disenchanting<input type="number" min="0" value={runDisenchantables} onChange={e=>setRunDisenchantables(e.target.value)}/></label>
+     <button type="submit" disabled={!baseRec?.rankings?.length}>Save run</button>
+    </form>
+    <p className="run-log-foot">Cloth and disenchantable items are yield proxies, not guaranteed skill-ups. Log comparable full runs for the fairest comparison. Data is stored in this browser.</p>
+    {farmRanking.measured&&<p className="run-log-foot">Ranking is now based on your recorded runs and the goals selected above. Dungeons without recorded runs are excluded until you log them.</p>}
+    {farmRanking.missingGoals.length>0&&<p className="run-log-foot">No positive {farmRanking.missingGoals.join(" / ")} yields recorded yet; that goal will contribute zero until measured.</p>}
    </section>
    <section className="recommendation-layout">
     <div className="primary-column">
      <div className="section-heading recommendation-heading"><div><div className="kicker">YOUR BEST MATCH</div><h2>Where to run next</h2></div><span className="live-pill"><i/> Character analysis</span></div>
      {best&&["ready","partial_data"].includes(rec.status)?<article className="best-card">
       <div className="best-card-top"><span className="recommend-label"><Target size={14}/> TOP DUNGEON</span><span className="level-pill">Level {best.min_level}–{best.max_level}</span></div>
-      <h3>{best.name}</h3><p className="best-summary">{best.upgrade_slots} potential gear slot upgrades for {current.name}. {best.best_upgrade?.name?"Best target: "+best.best_upgrade.name+".":""}</p>
+      <h3>{best.name}</h3><p className="best-summary">{best.upgrade_slots} potential gear slot upgrades for {current.name}. {best.best_upgrade?.name?"Best target: "+best.best_upgrade.name+".":""} {best.sampleCount?`Based on ${best.sampleCount} logged run(s), averaging ${best.avgMinutes.toFixed(1)} minutes.`:"No personal run data yet; showing the gear-first baseline."}</p>
       <div className="best-stats"><div><b>{best.upgrade_slots}</b><span>Upgrade slots</span></div><div><b>{best.best_upgrade?.drop_chance?best.best_upgrade.drop_chance.toFixed(1)+"%":"—"}</b><span>Best item drop chance</span></div><div><b>{rec.rankings?.length||1}</b><span>Dungeons compared</span></div></div>
       <div className="loot-heading"><span>UPGRADES TO TARGET</span><small>Item stats compared with your gear</small></div>
       <div className="loot-list">{(best.upgrades||[]).map(u=><a className="loot-row" href={u.item_url} target="_blank" rel="noreferrer" key={u.item_id+"-"+u.slot}>
        <ItemIcon src={u.icon_url} name={u.name}/><span className="loot-main"><b>{u.name}</b><small>{u.slot} <span>·</span> {u.boss}</small><StatLine stats={u.stats}/></span><span className="loot-extra"><b>{u.item_level?"iLvl "+u.item_level:""}</b><small>{u.drop_chance?u.drop_chance.toFixed(1)+"% drop":"Drop rate n/a"}</small><ExternalLink size={13}/></span>
       </a>)}</div>
-      <div className="best-card-foot"><span>Estimated stat-weighted value per run · not a run-time estimate</span><a href={best.source_url} target="_blank" rel="noreferrer">Loot source <ExternalLink size={12}/></a></div>
+      <div className="best-card-foot"><span>{best.sampleCount?"Measured personal yield rates · proxies, not skill-up guarantees":"Estimated stat-weighted gear value per run"}</span><a href={best.source_url} target="_blank" rel="noreferrer">Loot source <ExternalLink size={12}/></a></div>
      </article>:<div className="empty-card"><h3>{rec?.status==="no_upgrades_found"?"No useful upgrades found":"Dungeon analysis unavailable"}</h3><p>{rec?.message||"Run a fresh character analysis to calculate dungeon recommendations."}</p></div>}
-     {rec?.rankings?.length>1&&<div className="alternatives"><div className="subhead">Other dungeons worth considering</div>{rec.rankings.slice(1,5).map((d,i)=><div className="alternative-row" key={d.name}><span className="rank-number">0{i+2}</span><div><b>{d.name}</b><small>{d.upgrade_slots} upgrade slots · best drop: {d.best_upgrade?.name}</small></div><span className="alt-level">Lv {d.min_level}–{d.max_level}</span></div>)}</div>}
+     {rec?.rankings?.length>1&&<div className="alternatives"><div className="subhead">Other dungeons worth considering</div>{rec.rankings.slice(1,5).map((d,i)=><div className="alternative-row" key={d.name}><span className="rank-number">0{i+2}</span><div><b>{d.name}</b><small>{d.upgrade_slots} upgrade slots · {d.sampleCount?`${d.avgMinutes.toFixed(0)} min avg · ${d.clothPerHour?.toFixed(1)} cloth/hr · ${d.disenchantablesPerHour?.toFixed(1)} DE items/hr`:`best drop: ${d.best_upgrade?.name}`}</small></div><span className="alt-level">Lv {d.min_level}–{d.max_level}</span></div>)}</div>}
     </div>
     <aside className="side-column">
      <div className="side-card"><div className="kicker">CHARACTER SNAPSHOT</div><h3>Equipped gear</h3><div className="gear-count">{gear.length} items synced from Armory</div>
@@ -132,7 +171,7 @@ export default function App(){
       <button className="text-button" onClick={()=>setShowAllSkills(x=>!x)}>{showAllSkills?"Show focused skills":"Show all professions"}</button>
       <div className="profession-guides">{(showAllSkills?NAMES:["Tailoring","Enchanting"]).map(p=><a key={p} href={SOURCES[p]} target="_blank" rel="noreferrer">{p} guide <ExternalLink size={11}/></a>)}</div>
      </details>
-     <div className="side-card method-card"><div className="kicker">HOW IT WORKS</div><p>Recommendations compare usable dungeon loot against your equipped stats. Stat weights are estimates, not a combat simulator.</p><p>Dungeon clear times and complete profession-material drop tables are not yet verified, so the current score does not claim to maximize upgrades or profession skill-ups per hour.</p></div>
+     <div className="side-card method-card"><div className="kicker">HOW IT WORKS</div><p>Recommendations compare usable dungeon loot against your equipped stats. Stat weights are estimates, not a combat simulator.</p><p>When you log runs, the ranking compares stat-weighted gear value per hour with your measured cloth and eligible disenchantable-item yields per hour. These are personal yield proxies, not guaranteed profession skill-ups.</p></div>
     </aside>
    </section>
   </>}
