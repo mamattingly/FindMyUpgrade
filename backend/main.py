@@ -358,14 +358,80 @@ async def _wowhead_item_data(client, item_id):
     except httpx.HTTPError:
         return {"http_status": None, "item_id": int(item_id), "error": "request_error"}
 
+async def _thottbot_item_data(client, item_id):
+    status, payload = await _thottbot_get(client, f"items/{int(item_id)}")
+    if status != 200 or not isinstance(payload, dict):
+        return None
+    data = payload.get("data") or {}
+    item = data.get("item") or {}
+    if not isinstance(item, dict) or not item.get("name"):
+        return None
+    stats = []
+    for stat in item.get("stats") or []:
+        if not isinstance(stat, dict) or stat.get("value") is None:
+            continue
+        stat_name = stat.get("name") or stat.get("stat") or stat.get("type")
+        if isinstance(stat_name, dict):
+            stat_name = stat_name.get("name")
+        if stat_name:
+            stats.append({"name": str(stat_name), "value": stat.get("value")})
+    dropped = []
+    for source in data.get("droppedBy") or []:
+        if not isinstance(source, dict):
+            continue
+        observed = source.get("observed")
+        encounters = source.get("encounters")
+        raw_chance = source.get("dropChance", source.get("drop_chance"))
+        chance = None
+        try:
+            if observed is not None and encounters:
+                chance = float(observed) / float(encounters) * 100.0
+            elif raw_chance is not None:
+                chance = float(raw_chance)
+        except (TypeError, ValueError, ZeroDivisionError):
+            chance = None
+        dropped.append({
+            "npc_id": source.get("id") or source.get("npcId") or source.get("npc_id"),
+            "name": source.get("name") or source.get("npcName"),
+            "drop_chance": round(chance, 3) if chance is not None else None,
+            "observed": observed, "encounters": encounters,
+        })
+    damage_min, damage_max, speed_ms = item.get("damageMin"), item.get("damageMax"), item.get("speedMs")
+    weapon_dps = None
+    try:
+        if damage_min is not None and damage_max is not None and speed_ms:
+            weapon_dps = ((float(damage_min) + float(damage_max)) / 2.0) / (float(speed_ms) / 1000.0)
+    except (TypeError, ValueError, ZeroDivisionError):
+        weapon_dps = None
+    return {
+        "id": int(item_id), "name": item.get("name"),
+        "required_level": item.get("requiredLevel") or 0,
+        "inventory_type": item.get("inventoryType"),
+        "item_class": item.get("itemClass"),
+        "item_subclass": item.get("itemSpec"),
+        "item_level": item.get("itemLevel"),
+        "stats": stats, "stats_display": [],
+        "armor": item.get("armor") or 0, "weapon_dps": weapon_dps or 0,
+        "usable_by": item.get("usableBy") or [],
+        "drop_sources": dropped,
+        "data_url": f"https://thottbot-forever.com/items/{int(item_id)}",
+        "data_source": "Thottbot Forever",
+    }
+
 async def _static_item_data(client, token, region, item_id, semaphore):
     cache_key = (region, int(item_id))
     if cache_key in ITEM_CACHE:
         return ITEM_CACHE[cache_key]
     async with semaphore:
         try:
+            # Thottbot Forever provides structured item stats and, when
+            # observed, source-specific drop chances and sample counts.
+            thottbot = await _thottbot_item_data(client, item_id)
+            if thottbot and (thottbot.get("stats") or thottbot.get("armor") or thottbot.get("weapon_dps")):
+                ITEM_CACHE[cache_key] = thottbot
+                return thottbot
             # WarcraftDB serves a lightweight Forever-specific tooltip API.
-            # It is preferred over scraping full Wowhead pages.
+            # It is a secondary source when Thottbot has no record.
             warcraftdb = await _warcraftdb_item_data(client, item_id)
             if warcraftdb.get("parsed"):
                 ITEM_CACHE[cache_key] = warcraftdb
