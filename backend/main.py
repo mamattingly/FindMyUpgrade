@@ -613,7 +613,9 @@ async def _build_dungeon_recommendations(client, token, region, character, gear)
                     source_ids.append(item_id)
     # Avoid turning a single character lookup into hundreds of upstream calls.
     requested_ids = source_ids[:160]
-    semaphore = asyncio.Semaphore(4)
+    # These are independent remote item lookups; bounded concurrency of 8
+    # reduces cold-scan latency without opening an unbounded request fan-out.
+    semaphore = asyncio.Semaphore(8)
     fetched = await asyncio.gather(*[
         _static_item_data(client, token, region, item_id, semaphore)
         for item_id in requested_ids
