@@ -38,7 +38,7 @@ function getViewerCustomization(modelData){
  return values;
 }
 
-export default function CharacterModel({modelData,armoryRenderUrl,name}){
+export default function CharacterModel({modelData,armoryRenderUrl,name,previewItem=null}){
  const id="wow-armory-model-"+useId().replace(/[^a-zA-Z0-9_-]/g,"");
  const [status,setStatus]=useState("loading");
  const [detail,setDetail]=useState("");
@@ -56,6 +56,15 @@ export default function CharacterModel({modelData,armoryRenderUrl,name}){
    ...getViewerCustomization(modelData||{}),
    items:(modelData?.items||[]).map(([slot,displayId])=>[slot===16?21:slot===17?22:Number(slot),Number(displayId)])
   };
+  if(previewItem?.display_id&&previewItem?.slot){
+   const slotIds={"Head":0,"Neck":1,"Shoulders":2,"Shirt":3,"Chest":4,"Waist":5,"Legs":6,"Feet":7,"Wrist":8,"Hands":9,"Ring":10,"Trinket":12,"Back":14,"Main Hand":21,"Off Hand":22,"Ranged":18};
+   const target=slotIds[previewItem.slot];
+   if(target!==undefined){
+    const existing=character.items.findIndex(([slot])=>slot===target);
+    if(existing>=0)character.items[existing]=[target,Number(previewItem.display_id)];
+    else character.items.push([target,Number(previewItem.display_id)]);
+   }
+  }
   function refreshCanvas(){
    if(disposed||!viewer)return;
    const canvas=host.querySelector("canvas");
@@ -153,12 +162,12 @@ export default function CharacterModel({modelData,armoryRenderUrl,name}){
    }catch{}
    host.innerHTML="";
   };
- },[id,modelData]);
+ },[id,modelData,previewItem?.item_id,previewItem?.display_id,previewItem?.slot]);
  return <div className="character-model-canvas">
   <div id={id} className="wow-armory-viewer" aria-label={name?name+" 3D Armory character model":"3D Armory character model"}/>
   {showFallback&&armoryRenderUrl&&<div className="armory-render-fallback"><img src={armoryRenderUrl.startsWith("http")?armoryRenderUrl:"https://"+armoryRenderUrl} alt={name?name+" official Armory character render":"Official Armory character render"}/></div>}
   {status!=="ready"&&<div className="model-status" role="status">{status==="loading"?"Loading Armory model…":detail}</div>}
-  {status==="ready"&&<span className="model-hint">3D ARMORY MODEL · DRAG TO ROTATE</span>}
+  {status==="ready"&&<span className="model-hint">{previewItem?.display_id?"PREVIEWING ITEM · DRAG TO ROTATE":"3D ARMORY MODEL · DRAG TO ROTATE"}</span>}
   {status==="ready"&&<span className="model-gear-count">{loadedCount} / {modelData?.equipped_visual_item_count||loadedCount} gear pieces rendered</span>}
  </div>;
 }
