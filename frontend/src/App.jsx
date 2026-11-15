@@ -4,36 +4,6 @@ import CharacterModel from "./CharacterModel.jsx";
 import {canExportWmvCharacter,downloadWmvCharacter} from "./wowModelViewerExport.js";
 import {KEY,REGION_KEY,SKILL_KEY,GOALS_KEY,RUNS_KEY,NAMES,SOURCES,iconFallback,read,loadForeverDungeonXp,rankInfo,relevantStats,rankFarmDungeons} from "./lib/advisor.js";
 function ItemIcon({src,name,size="large"}){return <span className={"itemicon "+size}><img src={src||iconFallback} alt={name+" icon"} loading="lazy" onError={e=>{e.currentTarget.src=iconFallback}}/></span>}
-function relevantStats(stats,className,spec){
- const healer=(className==="Priest"&&["Discipline","Holy"].includes(spec))||(className==="Druid"&&spec==="Restoration")||(className==="Shaman"&&spec==="Restoration")||(className==="Paladin"&&spec==="Holy");
- const caster=["Mage","Warlock"].includes(className)||(className==="Priest"&&spec==="Shadow")||(className==="Druid"&&spec==="Balance")||(className==="Shaman"&&spec==="Elemental");
- const tank=(className==="Warrior"&&spec==="Protection")||(className==="Paladin"&&spec==="Protection");
- const physical=["Hunter","Rogue","Warrior"].includes(className)||(className==="Druid"&&spec==="Feral")||(className==="Shaman"&&spec==="Enhancement")||(className==="Paladin"&&spec==="Retribution");
- return (stats||[]).filter(s=>{
-  const n=String(s.name||"").toLowerCase();
-  if(/intellect|stamina/.test(n))return true;
-  if(healer)return /spirit|mana|healing|spell critical|critical strike/.test(n);
-  if(caster)return /spell damage|spell power|spell critical|critical strike|spirit|mana/.test(n);
-  if(tank)return /strength|defense|dodge|parry|block|armor|critical/.test(n);
-  if(physical)return /agility|strength|attack power|hit|expertise|critical/.test(n);
-  return !/spell damage|spell power|healing/.test(n);
- }).map(s=>(s.value>0?"+":"")+s.value+" "+s.name);
-}
-
-function rankFarmDungeons(rankings,logs,goals){
- if(!rankings?.length)return {rankings:[],measured:false,missingGoals:[]};
- const byDungeon=new Map();
- for(const run of logs||[]){if(!byDungeon.has(run.dungeon))byDungeon.set(run.dungeon,[]);byDungeon.get(run.dungeon).push(run);}
- const measured=byDungeon.size>0;
- const active=[{key:'gear',enabled:true},{key:'tailoring',enabled:!!goals.tailoring},{key:'enchanting',enabled:!!goals.enchanting}].filter(x=>x.enabled);
- const missingGoals=active.filter(x=>x.key!=='gear'&&![...byDungeon.values()].some(rows=>rows.some(r=>x.key==='tailoring'?Number(r.cloth)>0:Number(r.disenchantables)>0))).map(x=>x.key);
- const rows=rankings.map(d=>{const runs=byDungeon.get(d.name)||[];if(!runs.length)return {...d,sampleCount:0};const minutes=runs.reduce((n,r)=>n+Number(r.minutes||0),0)/runs.length;const cloth=runs.reduce((n,r)=>n+Number(r.cloth||0),0)/runs.length;const disenchantables=runs.reduce((n,r)=>n+Number(r.disenchantables||0),0)/runs.length;return {...d,sampleCount:runs.length,avgMinutes:minutes,gearPerHour:minutes>0?Number(d.score||0)*60/minutes:0,clothPerHour:minutes>0?cloth*60/minutes:0,disenchantablesPerHour:minutes>0?disenchantables*60/minutes:0};});
- const useMeasured=measured;
- const candidates=useMeasured?rows.filter(d=>d.sampleCount>0):rows;
- const metrics=active.map(x=>({key:x.key,max:Math.max(0,...candidates.map(d=>x.key==='gear'?(d.gearPerHour??Number(d.score||0)):x.key==='tailoring'?(d.clothPerHour||0):(d.disenchantablesPerHour||0)))}));
- const scored=candidates.map(d=>{const components=metrics.map(m=>{const value=m.key==='gear'?(d.gearPerHour??Number(d.score||0)):m.key==='tailoring'?(d.clothPerHour||0):(d.disenchantablesPerHour||0);return m.max>0?value/m.max:0;});return {...d,farmScore:components.length?components.reduce((a,b)=>a+b,0)/components.length:0,measured:!!d.sampleCount};}).sort((a,b)=>b.farmScore-a.farmScore);
- return {rankings:scored,measured:useMeasured,missingGoals};
-}
 function StatLine({stats}){if(!stats?.length)return null;return <div className="statline">{stats.map((s,i)=><span key={i}>{s}</span>)}</div>}
 export default function App(){
  const [profiles,setProfiles]=useState(()=>read(KEY,[]).filter(p=>p&&p.name&&p.class&&p.class!=="Unknown"&&Number.isFinite(p.level)));
