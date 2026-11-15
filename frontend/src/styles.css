@@ -664,3 +664,85 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,su
 @media(max-width:760px){.search-hero{grid-template-columns:1fr;gap:20px;padding:30px 0 22px}.search-card{min-width:0}.planner-grid{grid-template-columns:1fr}.planner-model-view{height:320px}.planner-model-view .character-model{height:300px}.character-stage{grid-template-columns:1fr;gap:4px;padding:12px}.character-stage-art{min-height:320px}.character-model{height:320px}.character-actions{flex-wrap:wrap}.character-actions>*{flex:1}.side-column{grid-template-columns:1fr}}
 @media(max-width:560px){.app-shell{padding-inline:14px}.planner-workbench{margin-bottom:24px}.planner-heading{display:block}.planner-count{display:inline-block;margin-top:12px}.planner-add{grid-template-columns:1fr}.planner-add button{width:100%}.planner-stat-head,.planner-stat{grid-template-columns:minmax(0,1fr) repeat(3,minmax(46px,.7fr));gap:5px;font-size:10px}.planner-stat-head{font-size:8px}.best-card{padding:15px}.best-card h3{font-size:26px}.best-stats{gap:10px}.best-stats b{font-size:21px}.loot-row{align-items:flex-start}.loot-extra{min-width:55px}.gear-grid{grid-template-columns:1fr 1fr}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
+
+
+/* ASTRAL FORGE — a constellation-like character instrument, not a dashboard. */
+.astral-stage{
+ position:relative!important;
+ display:grid!important;
+ grid-template-columns:minmax(190px,.72fr) minmax(320px,1.25fr) minmax(210px,.83fr)!important;
+ grid-template-rows:1fr auto!important;
+ align-items:center!important;gap:10px 24px!important;
+ min-height:590px!important;padding:34px 30px 44px!important;
+ border:1px solid #34465f!important;border-radius:22px!important;
+ background:
+  radial-gradient(ellipse at 50% 48%,rgba(47,116,163,.28),transparent 34%),
+  radial-gradient(ellipse at 13% 8%,rgba(113,75,177,.22),transparent 42%),
+  radial-gradient(ellipse at 92% 85%,rgba(34,164,157,.14),transparent 38%),
+  linear-gradient(135deg,#10182d 0%,#111e34 48%,#0c1829 100%)!important;
+ box-shadow:0 28px 70px rgba(0,0,0,.34),inset 0 1px rgba(255,255,255,.08)!important;
+ overflow:hidden!important;
+}
+.astral-stage:before{
+ content:"";position:absolute;inset:0;pointer-events:none;opacity:.32;
+ background-image:radial-gradient(circle,rgba(180,213,255,.8) 0 1px,transparent 1.5px),radial-gradient(circle,rgba(111,230,218,.65) 0 1px,transparent 1.6px);
+ background-size:71px 83px,113px 97px;background-position:8px 12px,39px 51px;
+}
+.astral-stage:after{
+ content:"";position:absolute;left:26%;top:7%;width:48%;height:80%;pointer-events:none;
+ border:1px solid rgba(112,175,226,.13);border-radius:50%;transform:rotate(-18deg);
+ box-shadow:0 0 0 28px rgba(105,159,211,.035),0 0 0 58px rgba(105,159,211,.025);
+}
+.astral-identity,.character-stage-art,.astral-equipment,.astral-footnote{position:relative;z-index:2}
+.astral-identity{align-self:start;padding:26px 0 0}
+.astral-identity .kicker{color:#89b8f4!important;font-size:9px;letter-spacing:.2em}
+.astral-identity .char-name{color:#f4f5ff!important;font-size:clamp(32px,3.4vw,48px)!important;line-height:1.04;letter-spacing:-.06em;margin:14px 0 12px}
+.astral-identity .char-sub{color:#c0cce2!important;font-size:12px;line-height:1.9}
+.astral-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:24px}
+.astral-actions button,.astral-actions a{font-size:10px;padding:9px 11px;border-radius:7px;text-decoration:none}
+.astral-actions .refresh-character{background:#a3f0e2!important;color:#0c2930!important;border:0!important}
+.astral-actions .armory-link{background:rgba(255,255,255,.06)!important;color:#e1e9ff!important;border:1px solid #536785!important}
+.astral-stage .character-stage-art{min-height:490px;display:grid;place-items:center}
+.astral-stage .character-model{height:470px!important;max-width:440px!important;z-index:3;filter:drop-shadow(0 24px 34px rgba(0,0,0,.6))}
+.astral-stage .character-stage-art:before{width:90%;background:radial-gradient(circle,rgba(106,204,225,.25),rgba(91,119,204,.12) 48%,transparent 70%)!important}
+.astral-stage .stage-orbit{width:82%;height:82%;border:1px solid rgba(126,186,238,.34)!important;opacity:.85}
+.astral-stage .stage-orbit-two{width:96%;height:65%;border-color:rgba(191,150,255,.28)!important;transform:rotate(-28deg)}
+.astral-stage .stage-caption,.astral-stage .stage-model-label{color:#bdc9e7!important;font-size:8px;letter-spacing:.19em;text-shadow:none}
+.astral-equipment{align-self:center;display:grid;gap:0;padding-left:12px;border-left:1px solid rgba(144,177,224,.22)}
+.astral-equipment-heading{display:flex;justify-content:space-between;color:#a8c9fa;font-size:9px;font-weight:900;letter-spacing:.16em;padding:0 0 12px}
+.astral-equipment-heading span{color:#6de0d1}
+.astral-slot{display:grid;grid-template-columns:34px minmax(0,1fr);gap:9px;align-items:center;padding:7px 4px;border-bottom:1px solid rgba(156,184,222,.13);text-decoration:none;min-width:0}
+.astral-slot:hover{background:rgba(111,166,220,.1);border-radius:6px}
+.astral-slot .itemicon{width:31px;height:31px;border:1px solid #60799a;border-radius:7px}
+.astral-slot>span{display:grid;gap:1px;min-width:0}
+.astral-slot b{color:#9eb8dd;font-size:9px;letter-spacing:.08em;text-transform:uppercase}
+.astral-slot small{color:#f0f3ff;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.astral-footnote{grid-column:1/-1;justify-self:end;color:#7f97ba;font-size:8px;font-weight:800;letter-spacing:.22em}
+.astral-footnote span{color:#5ee0c0;padding:0 5px}
+.side-column>.side-card:first-child{display:none}
+.astral-planner-grid{grid-template-columns:minmax(0,1fr)!important}
+.planner-workbench{padding:25px 0!important;border-top:1px solid #34465f!important;border-bottom:1px solid #34465f!important}
+.planner-heading{border-bottom:0!important;padding:0 0 8px!important}
+.planner-controls{grid-template-columns:minmax(250px,.9fr) minmax(260px,1fr) minmax(300px,1.2fr);align-items:start}
+.planner-add{grid-template-columns:1fr!important;align-content:start}
+.planner-add button{width:100%}
+.planner-stats{max-height:420px;overflow:auto}
+.recommendation-layout{margin-top:34px!important}
+@media(max-width:1050px){
+ .astral-stage{grid-template-columns:minmax(180px,.7fr) minmax(280px,1fr)!important}
+ .astral-equipment{grid-column:1/-1;grid-template-columns:repeat(3,minmax(0,1fr));border-left:0;border-top:1px solid rgba(144,177,224,.22);padding:12px 0 0}
+ .astral-equipment-heading{grid-column:1/-1}
+ .planner-controls{grid-template-columns:1fr 1fr}
+ .planner-stats{grid-column:1/-1}
+}
+@media(max-width:650px){
+ .astral-stage{grid-template-columns:1fr!important;padding:22px 16px 34px!important;gap:8px!important}
+ .astral-identity{padding:0}
+ .astral-stage .character-stage-art{min-height:330px}
+ .astral-stage .character-model{height:320px!important}
+ .astral-equipment{grid-column:auto;grid-template-columns:repeat(2,minmax(0,1fr));padding-top:10px}
+ .astral-equipment-heading{grid-column:1/-1}
+ .astral-footnote{font-size:7px}
+ .planner-controls{grid-template-columns:1fr}
+ .planner-stats{grid-column:auto}
+}
