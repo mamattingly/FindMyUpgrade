@@ -5,7 +5,7 @@ import {isDungeonXpEligible,relevantStats,rankFarmDungeons,rankInfo} from "./adv
 test("XP filter requires at least five mobs and a strict majority above gray",()=>{
  assert.equal(isDungeonXpEligible([20,20,20,20],30),false);
  assert.equal(isDungeonXpEligible([23,23,23,23,23],30),true);
- assert.equal(isDungeonXpEligible([23,23,23,22,22],30),false);
+ assert.equal(isDungeonXpEligible([23,23,22,22,22],30),false);
 });
 
 test("healer stat display excludes damage-only stats",()=>{
