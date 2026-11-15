@@ -16,10 +16,12 @@ export default function CharacterModel({race,className,spec}){
    try{
     const scene=new THREE.Scene();
     scene.background=null;
-    const width=Math.max(120,mount.clientWidth),height=Math.max(150,mount.clientHeight);
+    const width=Math.max(180,mount.clientWidth),height=Math.max(200,mount.clientHeight);
     const camera=new THREE.PerspectiveCamera(34,width/height,0.1,100);
-    camera.position.set(0,1.6,7.4);
-    renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+    camera.position.set(0,1.05,4.25);
+    camera.lookAt(0,1.02,0);
+    renderer=new THREE.WebGLRenderer({antialias:true,alpha:true,powerPreference:"high-performance"});
+    renderer.setClearColor(0x000000,0);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.6));
     renderer.setSize(width,height);
     renderer.outputColorSpace=THREE.SRGBColorSpace;
@@ -86,7 +88,7 @@ export default function CharacterModel({race,className,spec}){
     renderer.domElement.addEventListener("pointercancel",up);
     const resize=()=>{
      if(!mount||disposed)return;
-     const w=Math.max(120,mount.clientWidth),h=Math.max(150,mount.clientHeight);
+     const w=Math.max(180,mount.clientWidth),h=Math.max(200,mount.clientHeight);
      camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h);
     };
     observer=new ResizeObserver(resize);observer.observe(mount);
