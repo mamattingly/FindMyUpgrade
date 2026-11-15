@@ -47,7 +47,7 @@ jobs:
       - name: Wait for this version to reach Render
         env:
           APP_URL: https://wow-forever-dungeon-advisor-1zlg.onrender.com
-          EXPECTED_VERSION: "0.5.8"
+          EXPECTED_VERSION: "0.5.9"
         run: |
           python - <<'PY'
           import json, os, time, urllib.request
@@ -101,6 +101,23 @@ jobs:
           items = payload.get("items") or []
           if not any(x.get("parsed") and x.get("name") and x.get("stats") for x in items):
               raise SystemExit("WarcraftDB did not return a parsed Forever item tooltip with stats.")
+          PY
+      - name: Probe Blizzard item namespaces for legacy gear data
+        env:
+          APP_URL: https://wow-forever-dungeon-advisor-1zlg.onrender.com
+        run: |
+          python - <<'PY'
+          import json, os, urllib.parse, urllib.request
+          query = urllib.parse.urlencode({"ids": "7711,7713,7714,281290"})
+          url = os.environ["APP_URL"].rstrip("/") + "/api/static-namespace-diagnostics?" + query
+          with urllib.request.urlopen(url, timeout=90) as response:
+              payload = json.load(response)
+          print(json.dumps(payload, indent=2))
+          matches = [variant for item in payload.get("items", [])
+                     for variant in item.get("variants", [])
+                     if variant.get("http_status") == 200 and variant.get("stats")]
+          if not matches:
+              raise SystemExit("No Blizzard static namespace returned legacy item stats.")
           PY
       - name: Verify live character scan and dungeon analysis
         env:
