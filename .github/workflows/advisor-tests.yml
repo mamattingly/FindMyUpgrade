@@ -169,8 +169,42 @@ jobs:
                   }catch(error){return {path,error:String(error)};}
                 }));
               }""")
-              print("Armory CORS from advisor origin:",json.dumps(cors_result,indent=2))
+
               app_page.close()
+
+              # Verify the external profile can actually be embedded and its
+              # #model3d fragment positions the 560px WebGL canvas in the frame.
+              embed_page=browser.new_page(viewport={"width":800,"height":760})
+              embed_page.goto("https://wow-forever-dungeon-advisor-1zlg.onrender.com",
+                  wait_until="domcontentloaded",timeout=90000)
+              embed_page.evaluate("""() => {
+                const frame=document.createElement("iframe");
+                frame.id="armory-test-frame";
+                frame.src="https://armorywowforever.com/c/forever/us/pvp/Grandpa-Fetus#model3d";
+                frame.width="560";frame.height="560";
+                frame.style="border:0;width:560px;height:560px";
+                document.body.append(frame);
+              }""")
+              try:
+                  embed_page.wait_for_function("""() => {
+                    const f=document.querySelector("#armory-test-frame");
+                    try{return !!f?.contentDocument?.querySelector("#model3d canvas");}
+                    catch{return false;}
+                  }""",timeout=30000)
+                  frame=next((f for f in embed_page.frames if "armorywowforever.com/c/" in f.url),None)
+                  embed_result=frame.evaluate("""() => ({
+                    url:location.href,hash:location.hash,scrollY,
+                    modelBox:document.querySelector("#model3d")?.getBoundingClientRect().toJSON(),
+                    canvasBox:document.querySelector("#model3d canvas")?.getBoundingClientRect().toJSON(),
+                    canvasSize:{width:document.querySelector("#model3d canvas")?.width,
+                                height:document.querySelector("#model3d canvas")?.height},
+                    title:document.title
+                  })""") if frame else {"error":"Armory iframe frame not found"}
+              except Exception as exc:
+                  embed_result={"error":type(exc).__name__,"detail":str(exc)[:500]}
+              print("Armory iframe embed test:",json.dumps(embed_result,indent=2))
+              embed_page.close()
+
 
 
               browser.close()
