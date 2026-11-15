@@ -61,7 +61,7 @@ jobs:
           python -m pip install playwright
           python -m playwright install chromium
           python - <<'PY'
-          import json, re
+          import json, re, urllib.request
           from playwright.sync_api import sync_playwright
           url = "https://armorywowforever.com/c/forever/us/pvp/Grandpa-Fetus"
           with sync_playwright() as p:
