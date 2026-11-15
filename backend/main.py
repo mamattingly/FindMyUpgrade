@@ -1351,6 +1351,20 @@ async def item_icons(ids: str):
     return {"icons": {item_id: url for item_id, url in results if url}}
 
 
+
+
+@app.get("/api/item-appearance/{item_id}")
+async def item_appearance(item_id: int):
+    """Resolve a Forever item's 3D display ID only when the user previews it."""
+    if item_id < 1:
+        raise HTTPException(400, "Invalid item ID.")
+    async with httpx.AsyncClient(timeout=12, follow_redirects=True) as client:
+        item = await _wowhead_item_data(client, item_id)
+    display_id = item.get("display_id") if isinstance(item, dict) else None
+    if not display_id:
+        return {"item_id": item_id, "has_appearance": False}
+    return {"item_id": item_id, "display_id": int(display_id), "has_appearance": True}
+
 @app.get("/api/diagnostics")
 async def diagnostics(region: Literal["us", "eu", "kr", "tw"] = "us", name: str = "Faith Heal"):
     parts = " ".join(name.strip().split()).split()
