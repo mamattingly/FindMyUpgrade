@@ -1,5 +1,5 @@
 from backend import recommendations as rec
-from backend.main import _parse_wowhead_item_page, _spec_from_api, _build_character_model
+from backend.main import _parse_wowhead_item_page, _spec_from_api, _build_character_model, _parse_wowhead_model_display_id
 
 
 def test_normalise_stats_from_blizzard_shape():
@@ -275,3 +275,9 @@ def test_classic_model_viewer_uses_blizzard_appearance_ids_and_display_order(mon
     ]
     assert result["equipped_visual_item_count"] == 2
     assert result["missing_display_ids"] == []
+
+
+def test_wowhead_item_page_model_display_id_parser():
+    page = '<script>WH.Gatherer.addData(3, 1, {"id":6512,"modelviewer":{"displayid":98765,"type":1,"typeid":6512}});</script>'
+    assert _parse_wowhead_model_display_id(page) == 98765
+    assert _parse_wowhead_model_display_id("<html>no model metadata</html>") is None
