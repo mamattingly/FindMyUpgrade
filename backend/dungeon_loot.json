@@ -227,7 +227,8 @@
             23192
           ]
         }
-      ]
+      ],
+      "access_requirement": "Scarlet Key"
     },
     {
       "name": "Scarlet Monastery: Cathedral",
@@ -265,7 +266,8 @@
             7720
           ]
         }
-      ]
+      ],
+      "access_requirement": "Scarlet Key"
     },
     {
       "name": "Blackfathom Deeps",
