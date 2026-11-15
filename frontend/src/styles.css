@@ -397,3 +397,77 @@ body{background:#f4f6f8;color:#18232d}
  .character-stage .character-actions>*{flex:1}
  .stage-caption{left:4px;top:2px}
 }
+
+
+/* Cinematic Azeroth atmosphere — environmental depth behind the live character model. */
+body{
+ background:
+  radial-gradient(ellipse at 50% 0%,rgba(48,91,80,.15),transparent 48%),
+  linear-gradient(180deg,#eef3f1 0%,#f5f7f8 48%,#edf1f3 100%);
+}
+.app-shell.has-character{position:relative;isolation:isolate}
+.app-shell.has-character:before{
+ content:"";position:fixed;z-index:-1;inset:0;pointer-events:none;opacity:.42;
+ background:
+  radial-gradient(ellipse at 8% 28%,rgba(73,127,112,.15),transparent 28%),
+  radial-gradient(ellipse at 91% 18%,rgba(177,143,91,.12),transparent 26%),
+  radial-gradient(ellipse at 50% 100%,rgba(70,104,117,.1),transparent 38%);
+}
+.character-stage{
+ background:
+  linear-gradient(90deg,rgba(9,24,25,.22),rgba(11,25,28,.08) 44%,rgba(16,31,34,.18)),
+  radial-gradient(ellipse at 50% 42%,rgba(181,211,199,.14),transparent 43%),
+  linear-gradient(135deg,#243b3b 0%,#526b62 28%,#253d3d 58%,#182d32 100%);
+ border-color:#526e67;
+ box-shadow:0 24px 64px rgba(22,47,43,.2),inset 0 1px rgba(255,255,255,.12);
+ color:#f5f4ec;
+}
+.character-stage:before{
+ opacity:.28;
+ background:
+  linear-gradient(180deg,rgba(6,16,18,.02),rgba(5,14,17,.42)),
+  radial-gradient(ellipse at 15% 72%,rgba(193,157,98,.38),transparent 26%),
+  radial-gradient(ellipse at 86% 24%,rgba(114,157,142,.34),transparent 30%),
+  repeating-linear-gradient(118deg,transparent 0 42px,rgba(228,221,194,.045) 43px,transparent 45px);
+ mask-image:none;
+}
+.character-stage:after{
+ content:"";position:absolute;z-index:-1;inset:0;pointer-events:none;opacity:.22;
+ background:
+  linear-gradient(90deg,transparent 0 8%,rgba(8,19,20,.42) 8.2% 8.7%,transparent 9% 91%,rgba(8,19,20,.32) 91.2% 91.7%,transparent 92%),
+  radial-gradient(ellipse at 50% 115%,rgba(7,17,20,.85),transparent 55%);
+}
+.character-stage-art:before{
+ background:
+  radial-gradient(circle,rgba(202,222,205,.27) 0%,rgba(153,190,170,.13) 42%,rgba(7,23,24,.1) 64%,transparent 71%);
+ box-shadow:0 0 90px rgba(191,211,178,.1);
+}
+.character-stage-art:after{
+ background:#c0a36d;filter:blur(34px);opacity:.23;
+}
+.character-model{filter:drop-shadow(0 20px 24px rgba(3,12,14,.42))}
+.character-stage .char-main>.kicker,
+.character-stage .stage-caption,
+.character-stage .stage-model-label{color:#d0d9c9}
+.character-stage .char-name{color:#fff8e8;text-shadow:0 3px 18px rgba(0,0,0,.25)}
+.character-stage .char-sub{color:#d5e0d9}
+.character-stage .character-actions .refresh-character{
+ background:linear-gradient(135deg,#d8c18c,#b89961);border-color:#d8c18c;color:#25302b;
+ box-shadow:0 7px 22px rgba(0,0,0,.2)
+}
+.character-stage .character-actions .native-export,
+.character-stage .character-actions .armory-link{
+ background:rgba(9,24,25,.34);border-color:rgba(225,235,221,.28);color:#edf2e9;
+ backdrop-filter:blur(10px)
+}
+.stage-orbit{border-color:rgba(224,220,180,.45);filter:drop-shadow(0 0 8px rgba(216,198,142,.25))}
+.stage-orbit-two{border-color:rgba(220,235,219,.32)}
+/* Slow environmental motion: drifting motes and soft light, never competing with the avatar. */
+.character-stage-art .stage-orbit-one{animation:stage-drift 24s ease-in-out infinite alternate}
+.character-stage-art .stage-orbit-two{animation:stage-drift 32s ease-in-out infinite alternate-reverse}
+@keyframes stage-drift{from{transform:rotate(-19deg) scaleY(.34) translateY(-3px)}to{transform:rotate(-12deg) scaleY(.34) translateY(5px)}}
+@media(prefers-reduced-motion:reduce){.character-stage-art .stage-orbit-one,.character-stage-art .stage-orbit-two{animation:none}}
+@media(max-width:600px){
+ .character-stage{background:linear-gradient(145deg,#314b48,#1b3034 80%)}
+ .character-stage:before{opacity:.18}
+}
