@@ -74,6 +74,7 @@ export default function CharacterModel({modelData,armoryRenderUrl,name}){
      items:modelData.items.map(([slot,displayId])=>[toViewerSlot(Number(slot)),Number(displayId)])
     };
     viewer=await library.generateModels(1.45,"#"+id,character,"classic");
+    viewer?.setDistance?.(1.15);
     if(disposed){viewer?.destroy?.();return;}
     const actorCount=viewer?.renderer?.actors?.length||0;
     if(actorCount<1){
