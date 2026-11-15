@@ -181,6 +181,13 @@ def _api_name(value):
     return value.get("name") if isinstance(value, dict) else value
 
 
+MODEL_RACE_IDS = {
+    "human": 1, "orc": 2, "dwarf": 3, "night elf": 4,
+    "undead": 5, "scourge": 5, "tauren": 6, "gnome": 7,
+    "troll": 8, "blood elf": 10, "draenei": 11,
+}
+
+
 MODEL_SLOT_BY_NAME = {
     "head": 1, "shoulder": 3, "shoulders": 3, "shirt": 4,
     "chest": 5, "waist": 6, "legs": 7, "feet": 8,
