@@ -47,7 +47,7 @@ jobs:
       - name: Wait for this version to reach Render
         env:
           APP_URL: https://wow-forever-dungeon-advisor-1zlg.onrender.com
-          EXPECTED_VERSION: "0.5.1"
+          EXPECTED_VERSION: "0.5.3"
         run: |
           python - <<'PY'
           import json, os, time, urllib.request
@@ -74,7 +74,7 @@ jobs:
         run: |
           python - <<'PY'
           import json, os, urllib.parse, urllib.request
-          query = urllib.parse.urlencode({"region": "us", "ids": "7684,7713,6696"})
+          query = urllib.parse.urlencode({"region": "us", "ids": "7711,7713,7714"})
           url = os.environ["APP_URL"].rstrip("/") + "/api/item-diagnostics?" + query
           with urllib.request.urlopen(url, timeout=45) as response:
               payload = json.load(response)
@@ -84,7 +84,9 @@ jobs:
           if not valid:
               raise SystemExit("No Forever static item records were returned.")
           if not any(item.get("stats") for item in valid):
-              raise SystemExit("Item records loaded, but no preview stats were returned.")
+              raise SystemExit("Item records loaded, but no item stats were parsed.")
+          if not any(item.get("drop_chance") for item in valid):
+              raise SystemExit("Wowhead Forever item pages did not provide a parsed drop chance.")
           PY
       - name: Verify live character scan and dungeon analysis
         env:
