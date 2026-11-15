@@ -602,6 +602,18 @@ async def _static_item_diagnostic(client, token, region, item_id):
             params={"namespace": f"static-forever-{region}", "locale": REGION_LOCALES[region]},
             headers={"Authorization": f"Bearer {token}"})
         static_status = response.status_code
+        warcraftdb = await _warcraftdb_item_data(client, item_id)
+        if warcraftdb.get("parsed"):
+            return {
+                "item_id": int(item_id), "source": "WarcraftDB Forever",
+                "blizzard_http_status": static_status, "http_status": 200,
+                "name": warcraftdb.get("name"), "required_level": warcraftdb.get("required_level"),
+                "inventory_type": warcraftdb.get("inventory_type"),
+                "item_class": warcraftdb.get("item_class"), "item_subclass": warcraftdb.get("item_subclass"),
+                "item_level": warcraftdb.get("item_level"), "stats": warcraftdb.get("stats"),
+                "drop_source_name": warcraftdb.get("drop_source_name"),
+                "drop_chance": warcraftdb.get("drop_chance"), "data_url": warcraftdb.get("data_url"),
+            }
         twdb = await client.get(f"https://thewowdb.com/api/v1/forever/item/{int(item_id)}",
             headers={"User-Agent": "WoWForeverDungeonAdvisor/0.5 (+https://github.com/mamattingly/FindMyUpgrade)",
                      "Accept": "application/json"}, timeout=8)
