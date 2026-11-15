@@ -28,6 +28,34 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Probe external Forever Armory 3D profile embed support
+        run: |
+          python - <<'PY'
+          import json, re, urllib.request
+          url = "https://armorywowforever.com/c/forever/us/pvp/Grandpa-Fetus"
+          request = urllib.request.Request(url, headers={
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36",
+              "Accept": "text/html,application/xhtml+xml",
+          })
+          with urllib.request.urlopen(request, timeout=35) as response:
+              html = response.read().decode("utf-8", "replace")
+              headers = response.headers
+              print("Armory profile HTTP status:", response.status)
+              print("Armory final URL:", response.geturl())
+              print("Armory frame headers:", json.dumps({
+                  "x-frame-options": headers.get("X-Frame-Options"),
+                  "content-security-policy": headers.get("Content-Security-Policy"),
+                  "content-type": headers.get("Content-Type"),
+              }, indent=2))
+              print("Armory page size:", len(html))
+              print("Armory 3D markers:", {
+                  "canvas": html.count("<canvas"),
+                  "viewer": len(re.findall(r"viewer|modelviewer|3d", html, re.I)),
+                  "script_sources": re.findall(r'<script[^>]+src=["\\']([^"\\']+)', html)[:30],
+                  "iframe_sources": re.findall(r'<iframe[^>]+src=["\\']([^"\\']+)', html)[:10],
+              })
+              open("/tmp/forever-armory-profile.html", "w").write(html)
+          PY
       - name: Build frontend
         working-directory: frontend
         run: |
