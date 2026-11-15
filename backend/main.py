@@ -4,13 +4,13 @@ import os, re, json, html, time, asyncio
 import httpx
 from bs4 import BeautifulSoup
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from typing import Literal
 from backend.recommendations import DUNGEONS, recommend_dungeons
 
-app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.8.1")
+app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.8.2")
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "frontend" / "dist"
 REGION_LOCALES = {"us": "en_US", "eu": "en_GB", "kr": "ko_KR", "tw": "zh_TW"}
@@ -18,6 +18,7 @@ REGION_WEB_LOCALES = {"us": "en-us", "eu": "en-gb", "kr": "ko-kr", "tw": "zh-tw"
 TOKEN_CACHE = {"access_token": None, "expires_at": 0}
 ITEM_CACHE = {}
 ITEM_ICON_CACHE = {}
+MODEL_ASSET_CACHE = {}
 
 class ScanRequest(BaseModel):
     region: Literal["us", "eu", "kr", "tw"] = "us"
@@ -178,6 +179,90 @@ def _spec_from_api(data):
     return "Unknown"
 def _api_name(value):
     return value.get("name") if isinstance(value, dict) else value
+
+
+MODEL_SLOT_BY_NAME = {
+    "head": 1, "shoulder": 3, "shoulders": 3, "shirt": 4,
+    "chest": 5, "waist": 6, "legs": 7, "feet": 8,
+    "wrist": 9, "wrists": 9, "hands": 10, "back": 15,
+    "main hand": 16, "mainhand": 16, "off hand": 17, "offhand": 17,
+    "ranged": 18, "tabard": 19,
+}
+
+
+def _model_viewer_slot(slot, inventory_type=None):
+    name = str(_api_name(slot) or "").strip().casefold().replace("_", " ")
+    name = re.sub(r"\s+", " ", name)
+    if name == "chest" and str(_api_name(inventory_type) or "").casefold() == "robe":
+        return 20
+    return MODEL_SLOT_BY_NAME.get(name)
+
+
+def _appearance_gender_id(gender):
+    value = str(_api_name(gender) or "").casefold()
+    if value in {"male", "masculine"}:
+        return 1
+    if value in {"female", "feminine"}:
+        return 0
+    return None
+
+
+async def _build_character_model(client, appearance, equipment, race_name=None):
+    """Build Classic model-viewer input from Forever appearance/equipment APIs."""
+    if not isinstance(appearance, dict) or not isinstance(equipment, dict):
+        return None
+    playable_race = appearance.get("playable_race") or {}
+    race_id = playable_race.get("id") if isinstance(playable_race, dict) else None
+    if not race_id:
+        race_id = MODEL_RACE_IDS.get(str(race_name or "").casefold())
+    gender_id = _appearance_gender_id(appearance.get("gender"))
+    if not race_id or gender_id is None:
+        return None
+
+    equipped = equipment.get("equipped_items") or []
+    semaphore = asyncio.Semaphore(8)
+
+    async def resolve(entry):
+        if not isinstance(entry, dict):
+            return None
+        display_slot = _model_viewer_slot(entry.get("slot"), entry.get("inventory_type"))
+        if display_slot is None:
+            return None
+        item = entry.get("item") or {}
+        transmog = entry.get("transmog") or {}
+        transmog_item = transmog.get("item") or {}
+        item_id = transmog_item.get("id") or item.get("id")
+        if not item_id:
+            return None
+        async with semaphore:
+            details = await _wowhead_item_data(client, int(item_id))
+        display_id = details.get("display_id")
+        try:
+            display_id = int(display_id)
+        except (TypeError, ValueError):
+            return {"slot": display_slot, "item_id": int(item_id), "display_id": None}
+        if display_id <= 0:
+            return {"slot": display_slot, "item_id": int(item_id), "display_id": None}
+        return {"slot": display_slot, "item_id": int(item_id), "display_id": display_id}
+
+    resolved = await asyncio.gather(*(resolve(entry) for entry in equipped))
+    resolved = [item for item in resolved if item]
+    items = [[item["slot"], item["display_id"]] for item in resolved if item.get("display_id")]
+    customizations = []
+    for entry in appearance.get("customizations") or []:
+        if not isinstance(entry, dict):
+            continue
+        option, choice = entry.get("option") or {}, entry.get("choice") or {}
+        if option.get("id") is not None and choice.get("id") is not None:
+            customizations.append({"option_id": option["id"], "choice_id": choice["id"]})
+    return {
+        "race": int(race_id), "gender": gender_id,
+        "customizations": customizations, "items": items,
+        "resolved_item_count": len(items),
+        "equipped_visual_item_count": len(resolved),
+        "missing_display_ids": [x["item_id"] for x in resolved if not x.get("display_id")],
+        "source": "Blizzard Forever appearance/equipment + Wowhead Classic model data",
+    }
 
 def _numeric_value(value):
     if isinstance(value, dict):
@@ -359,6 +444,7 @@ async def _wowhead_item_data(client, item_id):
         elif isinstance(data, dict):
             tooltip_html = data.get("tooltip") or data.get("html") or data.get("tooltipHtml") or data.get("tooltip_html") or ""
             name = data.get("name")
+            display_id = data.get("displayid") or data.get("displayId") or data.get("display_id")
         else:
             tooltip_html, name = "", None
         parsed = _parse_tooltip_fragment(
@@ -367,6 +453,7 @@ async def _wowhead_item_data(client, item_id):
             data_source="Wowhead Forever")
         return {"http_status": 200, "parsed": bool(parsed.get("name") and parsed.get("stats")),
                 "response_keys": sorted(data.keys()) if isinstance(data, dict) else [],
+                "display_id": display_id if isinstance(data, dict) else None,
                 **parsed}
     except httpx.HTTPError:
         return {"http_status": None, "item_id": int(item_id), "parsed": False, "error": "request_error"}
@@ -672,11 +759,19 @@ async def scan(req: ScanRequest):
         dungeon_recommendations = {"status": "credentials_not_configured", "rankings": [], "recommended": None, "message": "Configure Blizzard API credentials to compare dungeon loot against equipped gear."}
         token = await _blizzard_token(client)
         if token:
-            equipment_data, spec_data, profession_data = await asyncio.gather(
+            equipment_data, spec_data, profession_data, appearance_data, media_data = await asyncio.gather(
                 _profile_api(client, token, req.region, profile_slug, "equipment"),
                 _profile_api(client, token, req.region, profile_slug, "specializations"),
-                _profile_api(client, token, req.region, profile_slug, "professions"))
+                _profile_api(client, token, req.region, profile_slug, "professions"),
+                _profile_api(client, token, req.region, profile_slug, "appearance"),
+                _profile_api(client, token, req.region, profile_slug, "character-media"))
             gear, spec, professions = _gear_from_api(equipment_data), _spec_from_api(spec_data), _professions_from_api(profession_data)
+            model_data = await _build_character_model(client, appearance_data, equipment_data, race)
+            media_assets = {
+                asset.get("key"): asset.get("value")
+                for asset in (media_data or {}).get("assets", [])
+                if isinstance(asset, dict) and asset.get("key") and asset.get("value")
+            }
             api_status = "connected" if any([equipment_data, spec_data, profession_data]) else "api_data_unavailable"
             if equipment_data and char_class and character.get("level"):
                 dungeon_recommendations = await _build_dungeon_recommendations(client, token, req.region, {
@@ -691,9 +786,44 @@ async def scan(req: ScanRequest):
                 "faction": faction.title() if isinstance(faction, str) else "Unknown",
                 "ruleset": ruleset.get("name") if isinstance(ruleset, dict) else None, "spec": spec},
             "equipped_gear": gear, "professions": professions, "api_status": api_status,
+            "model_data": model_data if token else None,
+            "armory_render_url": media_assets.get("main-raw") or media_assets.get("main-sd-raw"),
             "dungeon_recommendations": dungeon_recommendations,
             "scan_status": "profile_found" if char_class and character.get("level") else "profile_found_partial",
             "message": "Character verified. Gear, specialization and profession skills were retrieved from Blizzard's profile API." if api_status == "connected" else "Character verified, but automatic gear and dungeon analysis could not complete. Check the API connection status."}
+
+
+
+@app.get("/api/modelviewer/classic/{asset_path:path}")
+async def classic_modelviewer_asset(asset_path: str):
+    """Same-origin, cacheable proxy for the Classic model-viewer data files."""
+    clean = asset_path.strip("/")
+    if not clean or any(part in {".", ".."} for part in clean.split("/")):
+        raise HTTPException(400, "Invalid model asset path.")
+    cached = MODEL_ASSET_CACHE.get(clean)
+    if cached:
+        body, media_type = cached
+        return Response(content=body, media_type=media_type,
+                        headers={"Cache-Control": "public, max-age=86400"})
+    url = f"https://wow.zamimg.com/modelviewer/classic/{clean}"
+    try:
+        async with httpx.AsyncClient(timeout=25, follow_redirects=True) as client:
+            upstream = await client.get(url)
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, "The WoW model asset server could not be reached.") from exc
+    if upstream.status_code == 404:
+        raise HTTPException(404, "Classic model asset not found.")
+    if upstream.status_code != 200:
+        raise HTTPException(502, f"Classic model asset server returned HTTP {upstream.status_code}.")
+    media_type = upstream.headers.get("content-type", "application/octet-stream").split(";")[0]
+    body = upstream.content
+    if len(body) <= 12 * 1024 * 1024:
+        if len(MODEL_ASSET_CACHE) >= 160:
+            MODEL_ASSET_CACHE.pop(next(iter(MODEL_ASSET_CACHE)))
+        MODEL_ASSET_CACHE[clean] = (body, media_type)
+    return Response(content=body, media_type=media_type,
+                    headers={"Cache-Control": "public, max-age=86400"})
+
 
 @app.get("/api/item-icons")
 async def item_icons(ids: str):
@@ -725,7 +855,7 @@ async def diagnostics(region: Literal["us", "eu", "kr", "tw"] = "us", name: str 
         result = {"app_version": app.version, **auth, "region": region.upper(), "character_slug": slug}
         if not token:
             return result
-        endpoints = ("equipment", "specializations", "professions")
+        endpoints = ("equipment", "specializations", "professions", "appearance", "character-media")
         checks = await asyncio.gather(*[
             _profile_api_diagnostic(client, token, region, slug, endpoint)
             for endpoint in endpoints
@@ -766,6 +896,14 @@ async def diagnostics(region: Literal["us", "eu", "kr", "tw"] = "us", name: str 
                     and isinstance((s.get("specialization") or s), dict)
                     and (s.get("specialization") or s).get("name")
                 ][:8]
+            elif endpoint == "appearance" and isinstance(payload, dict):
+                result["appearance_race_id"] = (payload.get("playable_race") or {}).get("id")
+                result["appearance_gender"] = _api_name(payload.get("gender"))
+                result["appearance_customization_count"] = len(payload.get("customizations") or [])
+                result["appearance_item_count"] = len(payload.get("items") or [])
+                result["appearance_item_sample"] = (payload.get("items") or [])[:3]
+            elif endpoint == "character-media" and isinstance(payload, dict):
+                result["character_media_assets"] = [x.get("key") for x in payload.get("assets", []) if isinstance(x, dict)]
             elif endpoint == "professions" and isinstance(payload, dict):
                 result["profession_groups"] = [k for k in ("primaries", "secondaries") if isinstance(payload.get(k), list)]
         return result
