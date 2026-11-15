@@ -47,7 +47,7 @@ jobs:
       - name: Wait for this version to reach Render
         env:
           APP_URL: https://wow-forever-dungeon-advisor-1zlg.onrender.com
-          EXPECTED_VERSION: "0.6.1"
+          EXPECTED_VERSION: "0.6.2"
         run: |
           python - <<'PY'
           import json, os, time, urllib.request
@@ -102,6 +102,21 @@ jobs:
           items = payload.get("items") or []
           if not any(x.get("parsed") and x.get("name") and x.get("stats") for x in items):
               raise SystemExit("WarcraftDB did not return a parsed Forever item tooltip with stats.")
+          PY
+      - name: Verify Wowhead Forever tooltip API
+        env:
+          APP_URL: https://wow-forever-dungeon-advisor-1zlg.onrender.com
+        run: |
+          python - <<'PY'
+          import json, os, urllib.parse, urllib.request
+          query = urllib.parse.urlencode({"ids": "7711,7713,7714"})
+          url = os.environ["APP_URL"].rstrip("/") + "/api/wowhead-tooltip-diagnostics?" + query
+          with urllib.request.urlopen(url, timeout=90) as response:
+              payload = json.load(response)
+          print(json.dumps(payload, indent=2))
+          items = payload.get("items") or []
+          if not any(x.get("parsed") and x.get("name") and x.get("stats") for x in items):
+              raise SystemExit("Wowhead Forever tooltip API did not return parsed item stats.")
           PY
       - name: Probe Blizzard item namespaces for legacy gear data
         continue-on-error: true
