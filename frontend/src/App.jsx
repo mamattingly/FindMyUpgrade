@@ -139,11 +139,11 @@ export default function App(){
     <form className="run-log-form" onSubmit={saveRun}>
      <label>Dungeon<select required value={runDungeon} onChange={e=>setRunDungeon(e.target.value)}><option value="">Choose dungeon</option>{(baseRec?.rankings||[]).map(d=><option key={d.name} value={d.name}>{d.name}</option>)}</select></label>
      <label>Minutes<input type="number" min="1" max="600" value={runMinutes} onChange={e=>setRunMinutes(e.target.value)} required/></label>
-     <label>Cloth collected<input type="number" min="0" value={runCloth} onChange={e=>setRunCloth(e.target.value)}/></label>
-     <label>Eligible items for disenchanting<input type="number" min="0" value={runDisenchantables} onChange={e=>setRunDisenchantables(e.target.value)}/></label>
+     <label>Cloth relevant to current skill<input type="number" min="0" value={runCloth} onChange={e=>setRunCloth(e.target.value)}/></label>
+     <label>Items eligible at current Enchanting skill<input type="number" min="0" value={runDisenchantables} onChange={e=>setRunDisenchantables(e.target.value)}/></label>
      <button type="submit" disabled={!baseRec?.rankings?.length}>Save run</button>
     </form>
-    <p className="run-log-foot">Cloth and disenchantable items are yield proxies, not guaranteed skill-ups. Log comparable full runs for the fairest comparison. Data is stored in this browser.</p>
+    <p className="run-log-foot">Only count cloth useful at your current Tailoring skill and items eligible for disenchanting at your current Enchanting skill. These are yield proxies, not guaranteed skill-ups. Log comparable full runs for the fairest comparison. Data is stored in this browser.</p>
     {farmRanking.measured&&<p className="run-log-foot">Ranking is now based on your recorded runs and the goals selected above. Dungeons without recorded runs are excluded until you log them.</p>}
     {farmRanking.missingGoals.length>0&&<p className="run-log-foot">No positive {farmRanking.missingGoals.join(" / ")} yields recorded yet; that goal will contribute zero until measured.</p>}
    </section>
@@ -153,7 +153,7 @@ export default function App(){
      {best&&["ready","partial_data"].includes(rec.status)?<article className="best-card">
       <div className="best-card-top"><span className="recommend-label"><Target size={14}/> TOP DUNGEON</span><span className="level-pill">Level {best.min_level}–{best.max_level}</span></div>
       <h3>{best.name}</h3><p className="best-summary">{best.upgrade_slots} potential gear slot upgrades for {current.name}. {best.best_upgrade?.name?"Best target: "+best.best_upgrade.name+".":""} {best.sampleCount?`Based on ${best.sampleCount} logged run(s), averaging ${best.avgMinutes.toFixed(1)} minutes.`:"No personal run data yet; showing the gear-first baseline."}</p>
-      <div className="best-stats"><div><b>{best.upgrade_slots}</b><span>Upgrade slots</span></div><div><b>{best.best_upgrade?.drop_chance?best.best_upgrade.drop_chance.toFixed(1)+"%":"—"}</b><span>Best item drop chance</span></div><div><b>{rec.rankings?.length||1}</b><span>Dungeons compared</span></div></div>
+      <div className="best-stats"><div><b>{best.upgrade_slots}</b><span>Upgrade slots</span></div><div><b>{best.sampleCount?best.avgMinutes.toFixed(0)+"m":"—"}</b><span>Avg clear time</span></div><div><b>{goals.tailoring&&best.sampleCount?best.clothPerHour.toFixed(1):goals.enchanting&&best.sampleCount?best.disenchantablesPerHour.toFixed(1):rec.rankings?.length||1}</b><span>{goals.tailoring&&best.sampleCount?"Relevant cloth/hr":goals.enchanting&&best.sampleCount?"Eligible items/hr":"Dungeons compared"}</span></div></div>
       <div className="loot-heading"><span>UPGRADES TO TARGET</span><small>Item stats compared with your gear</small></div>
       <div className="loot-list">{(best.upgrades||[]).map(u=><a className="loot-row" href={u.item_url} target="_blank" rel="noreferrer" key={u.item_id+"-"+u.slot}>
        <ItemIcon src={u.icon_url} name={u.name}/><span className="loot-main"><b>{u.name}</b><small>{u.slot} <span>·</span> {u.boss}</small><StatLine stats={u.stats}/></span><span className="loot-extra"><b>{u.item_level?"iLvl "+u.item_level:""}</b><small>{u.drop_chance?u.drop_chance.toFixed(1)+"% drop":"Drop rate n/a"}</small><ExternalLink size={13}/></span>
