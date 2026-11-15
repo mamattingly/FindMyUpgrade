@@ -355,7 +355,7 @@ async def _fetch_wago_csv(client, table, build):
     try:
         response = await client.get(
             url, params={"build": build, "locale": "enUS"},
-            headers={"User-Agent": "WoW-Forever-Dungeon-Advisor/0.8.9", "Accept": "text/csv,*/*"},
+            headers={"User-Agent": "WoW-Forever-Dungeon-Advisor/0.9.0", "Accept": "text/csv,*/*"},
             timeout=35)
         if response.status_code != 200:
             return None, {"table": table, "build": build, "status": response.status_code}
