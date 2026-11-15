@@ -250,14 +250,14 @@ MODEL_DISPLAY_DIAGNOSTICS = {}
 def _parse_wowhead_model_display_id(page):
     """Read modelviewer.displayid from JSON or JavaScript object syntax."""
     source = page or ""
-    marker = re.search(r'["\\']?modelviewer["\\']?\\s*:', source, re.I)
+    marker = re.search(r"""["']?modelviewer["']?\s*:""", source, re.I)
     if not marker:
         return None
     # Keep the search local to the modelviewer object so another item's
     # displayid elsewhere on a long database page cannot be mistaken for it.
     section = source[marker.start():marker.start() + 3000]
     match = re.search(
-        r'["\\']?display(?:id|Id|ID)["\\']?\\s*:\\s*["\\']?(\\d+)',
+        r"""["']?display(?:id|Id|ID)["']?\s*:\s*["']?(\d+)""",
         section, re.I)
     return int(match.group(1)) if match else None
 
