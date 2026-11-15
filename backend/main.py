@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from typing import Literal
 from backend.recommendations import DUNGEONS, recommend_dungeons
 
-app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.5.5")
+app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.5.6")
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "frontend" / "dist"
 REGION_LOCALES = {"us": "en_US", "eu": "en_GB", "kr": "ko_KR", "tw": "zh_TW"}
@@ -688,6 +688,60 @@ async def item_diagnostics(region: Literal["us", "eu", "kr", "tw"] = "us", ids: 
             return {"app_version": app.version, **auth, "items": []}
         items = await asyncio.gather(*[_static_item_diagnostic(client, token, region, x) for x in item_ids])
         return {"app_version": app.version, "region": region.upper(), "items": items}
+
+
+async def _thottbot_get(client, path):
+    try:
+        response = await client.get(f"https://thottbot-forever.com/api/v1/{path.lstrip('/')}",
+            headers={"Accept": "application/json", "User-Agent": "WoWForeverDungeonAdvisor/0.5 (+https://github.com/mamattingly/FindMyUpgrade)"},
+            timeout=12)
+        if response.status_code != 200:
+            return response.status_code, None
+        return response.status_code, response.json()
+    except (httpx.HTTPError, ValueError):
+        return None, None
+
+@app.get("/api/thottbot-diagnostics")
+async def thottbot_diagnostics(ids: str = "7713,7711,281290,19019"):
+    try:
+        item_ids = [int(x.strip()) for x in ids.split(",") if x.strip()]
+    except ValueError:
+        raise HTTPException(400, "Item IDs must be comma-separated integers.")
+    if not item_ids or len(item_ids) > 12:
+        raise HTTPException(400, "Supply between 1 and 12 item IDs.")
+    async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+        dungeon_status, dungeon_payload = await _thottbot_get(client, "dungeons")
+        raw_dungeons = (dungeon_payload or {}).get("data") or []
+        dungeon_samples = []
+        for dungeon in raw_dungeons[:8]:
+            if isinstance(dungeon, dict):
+                dungeon_samples.append({
+                    "keys": sorted(dungeon.keys()),
+                    "id": dungeon.get("id"),
+                    "name": dungeon.get("name"),
+                    "level_range": dungeon.get("levelRange") or dungeon.get("levels"),
+                    "zone": dungeon.get("zone"),
+                })
+        item_samples = []
+        for item_id in item_ids:
+            status, payload = await _thottbot_get(client, f"items/{item_id}")
+            data = (payload or {}).get("data") or {}
+            item = data.get("item") or {}
+            item_samples.append({
+                "id": item_id, "http_status": status,
+                "response_keys": sorted(data.keys()) if isinstance(data, dict) else [],
+                "item_keys": sorted(item.keys()) if isinstance(item, dict) else [],
+                "name": item.get("name") if isinstance(item, dict) else None,
+                "item_sample": {k: item.get(k) for k in ("itemLevel", "requiredLevel", "inventoryType", "itemClass", "itemSubclass", "stats", "damage", "speed") if isinstance(item, dict) and k in item},
+                "dropped_by": (data.get("droppedBy") or [])[:4] if isinstance(data, dict) else [],
+            })
+        return {
+            "app_version": app.version,
+            "dungeons_http_status": dungeon_status,
+            "dungeon_count": len(raw_dungeons) if isinstance(raw_dungeons, list) else None,
+            "dungeon_samples": dungeon_samples,
+            "item_samples": item_samples,
+        }
 
 @app.post("/api/analyze")
 async def analyze(payload: dict):
