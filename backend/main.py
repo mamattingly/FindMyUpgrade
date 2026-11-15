@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from typing import Literal
 from backend.recommendations import DUNGEONS, recommend_dungeons
 
-app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.6.5")
+app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.6.6")
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "frontend" / "dist"
 REGION_LOCALES = {"us": "en_US", "eu": "en_GB", "kr": "ko_KR", "tw": "zh_TW"}
@@ -466,7 +466,7 @@ async def _blizzard_item_metadata(client, token, region, item_id):
     return None
 
 async def _static_item_data(client, token, region, item_id, semaphore):
-    cache_key = (region, int(item_id))
+    cache_key = (app.version, region, int(item_id))
     if cache_key in ITEM_CACHE:
         return ITEM_CACHE[cache_key]
     async with semaphore:
@@ -588,7 +588,7 @@ async def _build_dungeon_recommendations(client, token, region, character, gear)
                     source_ids.append(item_id)
     # Avoid turning a single character lookup into hundreds of upstream calls.
     requested_ids = source_ids[:160]
-    semaphore = asyncio.Semaphore(12)
+    semaphore = asyncio.Semaphore(4)
     fetched = await asyncio.gather(*[
         _static_item_data(client, token, region, item_id, semaphore)
         for item_id in requested_ids
