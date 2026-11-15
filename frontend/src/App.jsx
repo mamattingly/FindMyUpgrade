@@ -1,5 +1,5 @@
 import {useEffect,useMemo,useState} from "react";
-import {Search,ChevronDown,ExternalLink,Shield,Compass,BookOpen,Sparkles,Target} from "lucide-react";
+import {Search,ChevronDown,ExternalLink,Shield,Compass,BookOpen,Sparkles,Target,Package} from "lucide-react";
 const KEY="wow-forever-advisor-profiles", REGION_KEY="wow-forever-advisor-region", SKILL_KEY="wow-forever-profession-skills";
 const GOALS_KEY="wow-forever-farming-goals";
 const NAMES=["Alchemy","Blacksmithing","Enchanting","Engineering","Herbalism","Leatherworking","Mining","Skinning","Tailoring","Cooking","First Aid","Fishing"];
