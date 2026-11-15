@@ -376,7 +376,7 @@ async def _wago_build_candidates(client):
     try:
         response = await client.get(
             "https://wago.tools/db2",
-            headers={"User-Agent": "WoW-Forever-Dungeon-Advisor/0.8.9"},
+            headers={"User-Agent": "WoW-Forever-Dungeon-Advisor/0.9.0"},
             timeout=15)
         match = re.search(r'data-page="([^"]+)"', response.text)
         if response.status_code == 200 and match:
