@@ -51,8 +51,8 @@ jobs:
               print("Armory 3D markers:", {
                   "canvas": html.count("<canvas"),
                   "viewer": len(re.findall(r"viewer|modelviewer|3d", html, re.I)),
-                  "script_sources": re.findall(r'<script[^>]+src=["\\']([^"\\']+)', html)[:30],
-                  "iframe_sources": re.findall(r'<iframe[^>]+src=["\\']([^"\\']+)', html)[:10],
+                  "script_sources": re.findall(r'<script[^>]+src="([^"]+)', html)[:30],
+                  "iframe_sources": re.findall(r'<iframe[^>]+src="([^"]+)', html)[:10],
               })
               open("/tmp/forever-armory-profile.html", "w").write(html)
           PY
