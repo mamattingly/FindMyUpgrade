@@ -20,11 +20,16 @@ function loadScript(src){
 const FIELD_BY_OPTION={
  "Face":"face","Skin Color":"skin","Hair Style":"hairStyle","Hair Color":"hairColor",
  "Facial Hair":"facialStyle","Mustache":"facialStyle","Beard":"facialStyle",
- "Sideburns":"facialStyle","Ears":"ears","Fur Color":"furColor","Snout":"snout"
+ "Sideburns":"facialStyle","Face Shape":"facialStyle","Eyebrow":"facialStyle","Eyebrows":"facialStyle",
+ "Ears":"ears","Fur Color":"furColor","Snout":"snout",
+ "Primary Color":"primaryColor","Secondary Color":"secondaryColor",
+ "Secondary Color Strength":"secondaryColorStrength","Horn Color":"hornColor",
+ "Horns":"horns","Body Size":"bodySize"
 };
 
 function getViewerCustomization(modelData){
- const values={};
+ const values={skin:0,face:0,hairStyle:0,hairColor:0,facialStyle:0,ears:0,furColor:0,snout:0,
+  primaryColor:0,secondaryColor:0,secondaryColorStrength:0,hornColor:0,horns:0,bodySize:0};
  for(const entry of modelData.customizations||[]){
   const field=FIELD_BY_OPTION[entry.option_name];
   const displayOrder=Number(entry.display_order);
