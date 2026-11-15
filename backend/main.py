@@ -1,19 +1,29 @@
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import quote
 import re
 import httpx
 from bs4 import BeautifulSoup
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, Field
+from typing import Literal
 
-app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.1.0")
+app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.2.0")
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "frontend" / "dist"
 
+REGION_LOCALES = {
+    "us": "en-us",
+    "eu": "en-gb",
+    "kr": "ko-kr",
+    "tw": "zh-tw",
+}
+CLASSES = "Priest|Warrior|Paladin|Hunter|Rogue|Shaman|Mage|Warlock|Druid"
+
 class ScanRequest(BaseModel):
-    url: HttpUrl
+    region: Literal["us", "eu", "kr", "tw"] = "us"
+    name: str = Field(min_length=3, max_length=80)
 
 @app.get("/api/health")
 async def health():
@@ -29,37 +39,62 @@ async def demo():
         ]
     }
 
+def armory_character_url(region: str, full_name: str) -> str:
+    parts = full_name.strip().split()
+    if len(parts) != 2:
+        raise HTTPException(400, "Enter the character's first name and surname.")
+    slug = "-".join(parts).lower()
+    return f"https://worldofwarcraft.blizzard.com/{REGION_LOCALES[region]}/forever/{region}/armory/character/{quote(slug, safe='-')}"
+
 @app.post("/api/scan")
 async def scan(req: ScanRequest):
-    url = str(req.url)
-    parsed = urlparse(url)
-    if parsed.scheme != "https" or parsed.netloc.lower() not in {"foreverbuilds.io", "www.foreverbuilds.io"}:
-        raise HTTPException(400, "Use a valid HTTPS ForeverBuilds character URL.")
+    url = armory_character_url(req.region, req.name)
     try:
-        async with httpx.AsyncClient(timeout=18, follow_redirects=True, headers={"User-Agent": "Mozilla/5.0 WoWForeverDungeonAdvisor/0.1"}) as client:
+        async with httpx.AsyncClient(
+            timeout=25,
+            follow_redirects=True,
+            headers={"User-Agent": "Mozilla/5.0 WoWForeverDungeonAdvisor/0.2"}
+        ) as client:
             response = await client.get(url)
-            response.raise_for_status()
-    except Exception as exc:
-        raise HTTPException(502, f"Could not retrieve the character page ({type(exc).__name__}).") from exc
+    except httpx.RequestError as exc:
+        raise HTTPException(502, "Blizzard's Armory could not be reached. Please try again.") from exc
+
+    if response.status_code == 404:
+        raise HTTPException(404, "Character not found. Check the region and exact first name and surname. Characters may need to be level 10+ and logged out before appearing.")
+    if response.status_code >= 400:
+        raise HTTPException(502, f"Blizzard's Armory returned HTTP {response.status_code}. Please try again later.")
+
     soup = BeautifulSoup(response.text, "html.parser")
-    title = soup.title.get_text(" ", strip=True) if soup.title else "ForeverBuilds character"
-    text = soup.get_text(" ", strip=True)
-    level = re.search(r"\bLevel\s*(\d{1,2})\b", text, re.I)
-    class_match = re.search(r"\b(Priest|Warrior|Paladin|Hunter|Rogue|Shaman|Mage|Warlock|Druid)\b", title + " " + text, re.I)
-    faction = re.search(r"\b(Alliance|Horde)\b", text, re.I)
+    title = soup.title.get_text(" ", strip=True) if soup.title else "WoW Forever Armory"
+    visible_text = soup.get_text(" ", strip=True)
+    requested_name = " ".join(req.name.strip().split())
+    # Reject generic error/landing pages instead of treating any HTTP 200 as a character.
+    has_character_marker = (
+        "characterProfileInitialState" in response.text
+        or requested_name.casefold() in title.casefold()
+        or requested_name.casefold() in visible_text.casefold()
+    )
+    if not has_character_marker:
+        raise HTTPException(404, "Blizzard did not return a matching public character page. Check the spelling and region.")
+
+    level_match = re.search(r"\bLevel\s*(\d{1,2})\b", visible_text, re.I)
+    class_match = re.search(rf"\b({CLASSES})\b", title + " " + visible_text, re.I)
+    faction_match = re.search(r"\b(Alliance|Horde)\b", visible_text, re.I)
+
     return {
-        "source_url": url,
+        "source_url": str(response.url),
         "page_title": title,
         "character": {
-            "name": title.split("|")[0].strip()[:80],
-            "level": int(level.group(1)) if level else None,
+            "name": requested_name,
+            "region": req.region.upper(),
+            "level": int(level_match.group(1)) if level_match else None,
             "class": class_match.group(1).title() if class_match else "Unknown",
-            "faction": faction.group(1).title() if faction else "Unknown",
+            "faction": faction_match.group(1).title() if faction_match else "Unknown",
             "spec": "Unknown"
         },
         "equipped_gear": [],
-        "scan_status": "partial",
-        "message": "Page retrieved. Gear and spec were not reliably identified, so no personalized dungeon ranking was generated."
+        "scan_status": "profile_found_partial",
+        "message": "Found the public Blizzard Armory page. Equipped-gear extraction is not yet verified, so dungeon rankings are withheld rather than guessed."
     }
 
 @app.post("/api/analyze")
@@ -67,7 +102,7 @@ async def analyze(payload: dict):
     return {
         "status": "insufficient_data",
         "rankings": [],
-        "message": "A sourced loot dataset, equipped items, and reliable drop-rate data are required before calculating expected useful upgrades per hour."
+        "message": "A sourced loot dataset, verified equipped items, and reliable drop-rate data are required before calculating expected useful upgrades per hour."
     }
 
 if DIST.exists():
