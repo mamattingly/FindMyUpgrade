@@ -308,7 +308,8 @@ async def scan(req: ScanRequest):
         faction_obj = character.get("faction") or {}
         faction = faction_obj.get("name") or faction_obj.get("slug") or faction_obj.get("type")
         ruleset = character.get("ruleset") or {}
-        gear, spec, professions, api_status = [], "Unknown", [], "credentials_not_configured"\n        dungeon_recommendations = {"status": "credentials_not_configured", "rankings": [], "recommended": None, "message": "Configure Blizzard API credentials to compare dungeon loot against equipped gear."}
+        gear, spec, professions, api_status = [], "Unknown", [], "credentials_not_configured"
+        dungeon_recommendations = {"status": "credentials_not_configured", "rankings": [], "recommended": None, "message": "Configure Blizzard API credentials to compare dungeon loot against equipped gear."}
         token = await _blizzard_token(client)
         if token:
             equipment_data, spec_data, profession_data = await asyncio.gather(
@@ -316,7 +317,12 @@ async def scan(req: ScanRequest):
                 _profile_api(client, token, req.region, profile_slug, "specializations"),
                 _profile_api(client, token, req.region, profile_slug, "professions"))
             gear, spec, professions = _gear_from_api(equipment_data), _spec_from_api(spec_data), _professions_from_api(profession_data)
-            api_status = "connected" if any([equipment_data, spec_data, profession_data]) else "api_data_unavailable"\n            if equipment_data and char_class and character.get("level"):\n                dungeon_recommendations = await _build_dungeon_recommendations(client, token, req.region, {\n                    "level": character.get("level"), "class": char_class, "spec": spec,\n                    "faction": faction.title() if isinstance(faction, str) else "Unknown",\n                }, gear)
+            api_status = "connected" if any([equipment_data, spec_data, profession_data]) else "api_data_unavailable"
+            if equipment_data and char_class and character.get("level"):
+                dungeon_recommendations = await _build_dungeon_recommendations(client, token, req.region, {
+                    "level": character.get("level"), "class": char_class, "spec": spec,
+                    "faction": faction.title() if isinstance(faction, str) else "Unknown",
+                }, gear)
         soup = BeautifulSoup(profile_response.text, "html.parser")
         return {"source_url": str(profile_response.url),
             "page_title": soup.title.get_text(" ", strip=True) if soup.title else "WoW Forever Armory",
