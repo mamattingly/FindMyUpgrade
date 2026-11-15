@@ -836,8 +836,18 @@ def _parse_tooltip_fragment(page, item_id, name=None, data_url=None, data_source
         match = re.search(pattern, section_text, re.I)
         if match:
             stats.append({"name": stat_name, "value": float(match.group(1))})
+    # Classic-era tooltips distinguish healing-only, damage-only, and
+    # combined spell power. Combined bonuses must count for both roles;
+    # assigning them only to healing silently undervalues caster DPS, while
+    # conflating damage-only bonuses with healing would mislead healers.
+    combined_spell_power = re.search(
+        r"Increases damage and healing done by magical spells and effects by up to\s+([\d.]+)",
+        section_text, re.I)
+    if combined_spell_power:
+        value = float(combined_spell_power.group(1))
+        stats.append({"name": "Spell Healing", "value": value})
+        stats.append({"name": "Spell Damage", "value": value})
     for pattern, stat_name in [
-        (r"Increases damage and healing done by magical spells and effects by up to\s+([\d.]+)", "Spell Healing"),
         (r"Increases healing done by spells and effects by up to\s+([\d.]+)", "Spell Healing"),
         (r"Increases damage done by spells and effects by up to\s+([\d.]+)", "Spell Damage"),
         (r"Improves your chance to get a critical strike by\s+([\d.]+)%", "Spell Critical Strike"),

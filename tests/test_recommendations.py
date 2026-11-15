@@ -81,7 +81,7 @@ def test_wowhead_forever_item_parser_extracts_stats_and_drop_chance():
     assert item["required_level"] == 34
     assert item["drop_source_name"] == "Arcanist Doan"
     assert item["drop_chance"] == 30.62
-    assert {x["name"] for x in item["stats"]} >= {"Stamina", "Intellect", "Spirit", "Spell Healing"}
+    assert {x["name"] for x in item["stats"]} >= {"Stamina", "Intellect", "Spirit", "Spell Healing", "Spell Damage"}
 
 
 def test_two_hander_must_replace_both_mainhand_and_offhand(monkeypatch):
@@ -362,6 +362,43 @@ def test_modelviewer_asset_fallback_candidates_for_forever():
     assert robe[-1].endswith("/classic/meta/armor/20/8857.json")
     classic = _modelviewer_asset_candidates("classic", "meta/item/5554.json")
     assert classic == ["https://wow.zamimg.com/modelviewer/classic/meta/item/5554.json"]
+
+
+def test_wowhead_parser_keeps_healing_and_damage_bonuses_separate():
+    from backend.main import _parse_wowhead_item_page
+
+    healing = _parse_wowhead_item_page(
+        "<html><h1>Healing Mace</h1><div>Increases healing done by spells and effects by up to 30</div></html>", 9101)
+    damage = _parse_wowhead_item_page(
+        "<html><h1>Damage Staff</h1><div>Increases damage done by spells and effects by up to 30</div></html>", 9102)
+    combined = _parse_wowhead_item_page(
+        "<html><h1>Balanced Staff</h1><div>Increases damage and healing done by magical spells and effects by up to 30</div></html>", 9103)
+
+    assert rec.normalise_stats(healing["stats"]) == {"spell_healing": 30.0}
+    assert rec.normalise_stats(damage["stats"]) == {"spell_damage": 30.0}
+    assert rec.normalise_stats(combined["stats"]) == {
+        "spell_healing": 30.0, "spell_damage": 30.0
+    }
+
+
+def test_healing_only_and_damage_only_items_are_role_specific():
+    healing_only = {"stats": [{"name": "Spell Healing", "value": 30}]}
+    damage_only = {"stats": [{"name": "Spell Damage", "value": 30}]}
+    for class_name, spec in [
+        ("Priest", "Discipline"), ("Priest", "Holy"),
+        ("Druid", "Restoration"), ("Shaman", "Restoration"),
+        ("Paladin", "Holy"),
+    ]:
+        assert rec.item_score(healing_only, class_name, spec) > 0
+        assert rec.item_score(damage_only, class_name, spec) == 0
+    for class_name, spec in [
+        ("Priest", "Shadow"), ("Druid", "Balance"),
+        ("Shaman", "Elemental"), ("Mage", "Fire"),
+        ("Warlock", "Affliction"),
+    ]:
+        assert rec.item_score(damage_only, class_name, spec) > 0
+        assert rec.item_score(healing_only, class_name, spec) == 0
+
 
 def test_healer_ignores_dps_only_stats_even_with_high_armor_and_item_level():
     dps_only = {
