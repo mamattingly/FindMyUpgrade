@@ -5,6 +5,21 @@ import {canExportWmvCharacter,downloadWmvCharacter} from "./wowModelViewerExport
 import {KEY,REGION_KEY,SKILL_KEY,GOALS_KEY,RUNS_KEY,NAMES,SOURCES,iconFallback,read,loadForeverDungeonXp,rankInfo,relevantStats,rankFarmDungeons,XP_CACHE_KEY,isDungeonXpEligible} from "./lib/advisor.js";
 function ItemIcon({src,name,size="large"}){return <span className={"itemicon "+size}><img src={src||iconFallback} alt={name+" icon"} loading="lazy" onError={e=>{e.currentTarget.src=iconFallback}}/></span>}
 function StatLine({stats}){if(!stats?.length)return null;return <div className="statline">{stats.map((s,i)=><span key={i}>{s}</span>)}</div>}
+function ItemTooltip({item}){
+ if(!item)return null;
+ const stats=(item.stat_values||item.stats||[]).map(stat=>({name:stat.name||stat.stat||stat.type?.name||"Stat",value:Number(stat.value??stat.amount??0)})).filter(stat=>stat.name&&Number.isFinite(stat.value)&&stat.value!==0);
+ return <div className="wow-item-tooltip" role="tooltip">
+  <b className="tooltip-item-name">{item.name||"Unknown item"}</b>
+  {item.item_level!=null&&<span className="tooltip-line">Item Level {item.item_level}</span>}
+  {item.slot&&<span className="tooltip-line">{item.slot}</span>}
+  {item.required_level!=null&&<span className="tooltip-line">Requires Level {item.required_level}</span>}
+  {item.armor!=null&&Number(item.armor)>0&&<span className="tooltip-line">{item.armor} Armor</span>}
+  {item.weapon_dps!=null&&Number(item.weapon_dps)>0&&<span className="tooltip-line">{Number(item.weapon_dps).toFixed(1)} damage per second</span>}
+  {stats.length>0?<div className="tooltip-stats">{stats.map((stat,i)=><span key={i}>+{stat.value} {stat.name}</span>)}</div>:<span className="tooltip-muted">Detailed stats unavailable</span>}
+  {item.boss&&<span className="tooltip-source">Dropped by: {item.boss}</span>}
+  {item.drop_chance!=null&&<span className="tooltip-muted">Drop chance: {Number(item.drop_chance).toFixed(1)}%</span>}
+ </div>;
+}
 const UPGRADE_STAT_OPTIONS=[["intellect","Intellect"],["spirit","Spirit"],["stamina","Stamina"],["agility","Agility"],["strength","Strength"],["spell_damage","Spell Damage / Power"],["spell_healing","Healing"],["spell_crit","Spell Critical Strike"],["crit","Critical Strike"],["hit","Hit"],["expertise","Expertise"],["attack_power","Attack Power"],["mp5","Mana per 5 sec"],["defense","Defense"],["dodge","Dodge"],["parry","Parry"],["block","Block"],["armor","Armor"]];
 function statKey(name){const n=String(name||"").toLowerCase().replace(/[_-]/g," ");if(n.includes("intellect"))return "intellect";if(n.includes("spirit"))return "spirit";if(n.includes("stamina"))return "stamina";if(n.includes("agility"))return "agility";if(n.includes("strength"))return "strength";if(n.includes("healing"))return "spell_healing";if(n.includes("spell damage")||n.includes("spell power"))return "spell_damage";if(n.includes("spell critical")||n.includes("spell crit"))return "spell_crit";if(n.includes("mana")&&(n.includes("5")||n.includes("regen")))return "mp5";if(n.includes("attack power"))return "attack_power";if(n.includes("expertise"))return "expertise";if(n.includes("hit"))return "hit";if(n.includes("defense"))return "defense";if(n.includes("dodge"))return "dodge";if(n.includes("parry"))return "parry";if(n.includes("block"))return "block";if(n.includes("armor"))return "armor";if(n.includes("critical")||n==="crit")return "crit";return null;}
 function StatComparison({upgrade,character,selectedStats}){
@@ -33,7 +48,7 @@ export default function App(){
  const [runDisenchantables,setRunDisenchantables]=useState("0");
  const [showAllSkills,setShowAllSkills]=useState(false);
  const [upgradeStats,setUpgradeStats]=useState(()=>read("wow-forever-upgrade-stat-preferences",[]));
- const [hoverPreview,setHoverPreview]=useState(null);
+ const [hoverPreview,setHoverPreview]=useState(null);\n const [hoverTooltip,setHoverTooltip]=useState(null);
  useEffect(()=>localStorage.setItem(KEY,JSON.stringify(profiles)),[profiles]);
  useEffect(()=>localStorage.setItem(REGION_KEY,region),[region]);
  useEffect(()=>localStorage.setItem(SKILL_KEY,JSON.stringify(skills)),[skills]);
@@ -113,6 +128,15 @@ export default function App(){
 .stat-up{color:#65d6a3}.stat-down{color:#f08b8b}.stat-even{color:var(--muted,#8c96a6)}
 .comparison-score{margin-top:8px;padding-top:7px;border-top:1px solid rgba(255,255,255,.08);font-size:10px;color:var(--muted,#9aa4b2)}
 .comparison-empty{font-size:10px;color:var(--muted,#9aa4b2);margin:6px 0}
+.loot-row{position:relative}
+.wow-item-tooltip{position:absolute;z-index:30;left:54px;top:8px;width:min(290px,calc(100vw - 90px));padding:12px 14px;border:1px solid #7b6b48;border-radius:7px;background:linear-gradient(145deg,#171b24 0%,#0d1118 100%);box-shadow:0 12px 34px rgba(0,0,0,.62);color:#f1e8d0;text-align:left;pointer-events:none;display:grid;gap:4px;font-size:12px;font-weight:400}
+.tooltip-item-name{font-size:14px;color:#f3c969;line-height:1.3;margin-bottom:2px}
+.tooltip-line{color:#d8dce5}
+.tooltip-stats{display:grid;gap:3px;margin:5px 0;color:#1eff00}
+.tooltip-source{color:#f0d9a0;margin-top:4px}
+.tooltip-muted{color:#aeb6c4;font-size:11px}
+@media(max-width:640px){.wow-item-tooltip{left:0;top:calc(100% + 5px);width:min(290px,calc(100vw - 48px))}}
+
 `}</style>
   <header className="topbar">
    <a className="brand" href="#"><span className="brand-mark">F</span><span><b>FOREVER</b><small>DUNGEON ADVISOR</small></span></a>
@@ -167,7 +191,7 @@ export default function App(){
       <div className="best-stats"><div><b>{best.upgrade_slots}</b><span>Upgrade slots</span></div><div><b>{best.sampleCount?best.avgMinutes.toFixed(0)+"m":"—"}</b><span>Avg clear time</span></div><div><b>{goals.tailoring&&best.sampleCount?best.clothPerHour.toFixed(1):goals.enchanting&&best.sampleCount?best.disenchantablesPerHour.toFixed(1):rec.rankings?.length||1}</b><span>{goals.tailoring&&best.sampleCount?"Relevant cloth/hr":goals.enchanting&&best.sampleCount?"Eligible items/hr":"Dungeons compared"}</span></div></div>
       <div className="loot-heading"><span>UPGRADES TO TARGET</span><small>Net stat changes versus the item replaced</small></div>
       <div className="upgrade-stat-filter"><div className="upgrade-filter-heading"><b>Search for upgrades with these stats</b><button type="button" onClick={()=>setUpgradeStats([])}>Clear filters</button></div><p>Select one or more stats. Matching items have at least one selected stat. Leave all unchecked to show every specialization-relevant upgrade.</p><div className="upgrade-stat-options">{UPGRADE_STAT_OPTIONS.filter(([key,label])=>relevantStats([{name:label,value:1}],current.class,current.spec).length>0).map(([key,label])=><label key={key}><input type="checkbox" checked={upgradeStats.includes(key)} onChange={e=>setUpgradeStats(old=>e.target.checked?[...old,key]:old.filter(x=>x!==key))}/>{label}</label>)}</div></div>
-      {(()=>{const pool=best.all_upgrades||best.upgrades||[];const matches=upgradeStats.length?pool.filter(u=>(u.stat_values||[]).some(s=>upgradeStats.includes(statKey(s.name||s.stat||s.type?.name)))):pool;return <><div className="upgrade-results-count">Showing {Math.min(matches.length,20)} of {matches.length} matching potential upgrades</div><div className="loot-list">{matches.slice(0,20).map(u=><a className="loot-row" href={u.item_url} target="_blank" rel="noreferrer" key={u.item_id+"-"+u.slot} onMouseEnter={()=>previewUpgrade(u)} onMouseLeave={()=>setHoverPreview(null)} onFocus={()=>previewUpgrade(u)} onBlur={()=>setHoverPreview(null)}><ItemIcon src={u.icon_url} name={u.name}/><span className="loot-main"><b>{u.name}</b><small>{u.slot} <span>·</span> {u.boss}</small><StatLine stats={u.stats}/><StatComparison upgrade={u} character={current} selectedStats={upgradeStats}/></span><span className="loot-extra"><b>{u.item_level?"iLvl "+u.item_level:""}</b><small>{u.drop_chance?u.drop_chance.toFixed(1)+"% drop":"Drop rate n/a"}</small><ExternalLink size={13}/></span></a>)}</div></>})()}
+      {(()=>{const pool=best.all_upgrades||best.upgrades||[];const matches=upgradeStats.length?pool.filter(u=>(u.stat_values||[]).some(s=>upgradeStats.includes(statKey(s.name||s.stat||s.type?.name)))):pool;return <><div className="upgrade-results-count">Showing {Math.min(matches.length,20)} of {matches.length} matching potential upgrades</div><div className="loot-list">{matches.slice(0,20).map(u=><a className="loot-row" href={u.item_url} target="_blank" rel="noreferrer" key={u.item_id+"-"+u.slot} onMouseEnter={()=>{setHoverTooltip(u);previewUpgrade(u)}} onMouseLeave={()=>{setHoverTooltip(null);setHoverPreview(null)}} onFocus={()=>{setHoverTooltip(u);previewUpgrade(u)}} onBlur={()=>{setHoverTooltip(null);setHoverPreview(null)}}><ItemTooltip item={hoverTooltip?.item_id===u.item_id?hoverTooltip:null}/><ItemIcon src={u.icon_url} name={u.name}/><span className="loot-main"><b>{u.name}</b><small>{u.slot} <span>·</span> {u.boss}</small><StatLine stats={u.stats}/><StatComparison upgrade={u} character={current} selectedStats={upgradeStats}/></span><span className="loot-extra"><b>{u.item_level?"iLvl "+u.item_level:""}</b><small>{u.drop_chance?u.drop_chance.toFixed(1)+"% drop":"Drop rate n/a"}</small><ExternalLink size={13}/></span></a>)}</div></>})()}
       <div className="best-card-foot"><span>{best.sampleCount?"Measured personal yield rates · proxies, not skill-up guarantees":"Estimated stat-weighted gear value per run"}</span><a href={best.source_url} target="_blank" rel="noreferrer">Loot source <ExternalLink size={12}/></a></div>
      </article>:<div className="empty-card"><h3>{rec?.status==="no_upgrades_found"?"No useful upgrades found":goals.mustGrantXp?"No dungeons meet the XP filter":"Dungeon analysis unavailable"}</h3><p>{goals.mustGrantXp&&xpQualified.length===0?"No dungeons have sufficient Forever NPC level records to confirm that most mobs award XP at your current level.":rec?.message||"Run a fresh character analysis to calculate dungeon recommendations."}</p></div>}
      {rec?.rankings?.length>1&&<div className="alternatives"><div className="subhead">Other dungeons worth considering</div>{rec.rankings.slice(1,5).map((d,i)=><div className="alternative-row" key={d.name}><span className="rank-number">0{i+2}</span><div><b>{d.name}</b><small>{d.upgrade_slots} upgrade slots · {d.sampleCount?`${d.avgMinutes.toFixed(0)} min avg · ${d.clothPerHour?.toFixed(1)} cloth/hr · ${d.disenchantablesPerHour?.toFixed(1)} DE items/hr`:`best drop: ${d.best_upgrade?.name}`}</small></div><span className="alt-level">Lv {d.min_level}–{d.max_level}</span></div>)}</div>}
