@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from typing import Literal
 from backend.recommendations import DUNGEONS, recommend_dungeons
 
-app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.8.9")
+app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.9.0")
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "frontend" / "dist"
 REGION_LOCALES = {"us": "en_US", "eu": "en_GB", "kr": "ko_KR", "tw": "zh_TW"}
@@ -371,13 +371,35 @@ async def _fetch_wago_csv(client, table, build):
         return None, {"table": table, "build": build, "error": type(exc).__name__}
 
 
+async def _wago_build_candidates(client):
+    candidates = []
+    try:
+        response = await client.get(
+            "https://wago.tools/db2",
+            headers={"User-Agent": "WoW-Forever-Dungeon-Advisor/0.8.9"},
+            timeout=15)
+        match = re.search(r'data-page="([^"]+)"', response.text)
+        if response.status_code == 200 and match:
+            payload = json.loads(html.unescape(match.group(1)))
+            versions = payload.get("props", {}).get("versions", [])
+            candidates = [v for v in versions if re.match(r"^1\\.60\\.1\\.\\d+$", str(v))]
+            candidates.sort(key=lambda v: tuple(int(x) for x in re.findall(r"\\d+", v)), reverse=True)
+    except (httpx.HTTPError, ValueError, TypeError):
+        pass
+    return list(dict.fromkeys(candidates + list(WAGO_DB2_BUILDS)))
+
+
 async def _load_wago_appearance_index(client):
     if WAGO_DB2_CACHE["build"] or WAGO_DB2_CACHE["diagnostics"]:
         return WAGO_DB2_CACHE
     async with WAGO_DB2_LOCK:
         if WAGO_DB2_CACHE["build"] or WAGO_DB2_CACHE["diagnostics"]:
             return WAGO_DB2_CACHE
-        for build in WAGO_DB2_BUILDS:
+        builds = await _wago_build_candidates(client)
+        WAGO_DB2_CACHE["diagnostics"].append({
+            "source": "wago_db2_build_discovery", "candidate_builds": builds[:5]
+        })
+        for build in builds[:5]:
             modified_task = _fetch_wago_csv(client, "ItemModifiedAppearance", build)
             appearance_task = _fetch_wago_csv(client, "ItemAppearance", build)
             modified_csv, appearance_csv = await asyncio.gather(modified_task, appearance_task)
