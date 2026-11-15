@@ -51,7 +51,58 @@ STAT_WEIGHTS = {
 }
 DEFAULT_WEIGHTS = {"intellect": 0.8, "strength": 0.7, "agility": 0.7,
                    "stamina": 0.4, "spirit": 0.4, "attack_power": 0.6,
-                   "spell_damage": 0.6, "spell_healing": 0.6, "mp5": 0.4}
+                   "spell_damage": 0.6, "spell_healing": 0.6, "mp5": 0.4,
+                   "hit": 0.45, "crit": 0.4, "spell_crit": 0.4,
+                   "defense": 0.3, "dodge": 0.3, "parry": 0.3, "block": 0.3}
+
+# Classic-era stat weights are deliberately broad leveling estimates. Spec
+# overrides prevent irrelevant damage/healing stats from leaking into the UI.
+SPEC_WEIGHT_OVERRIDES = {
+    ("Priest", "Discipline"): {"spell_healing": 1.25, "spell_damage": 0.0, "spell_crit": 0.9, "spirit": 1.0, "mp5": 1.1},
+    ("Priest", "Holy"): {"spell_healing": 1.3, "spell_damage": 0.0, "spell_crit": 0.85, "spirit": 1.0, "mp5": 1.15},
+    ("Priest", "Shadow"): {"spell_healing": 0.0, "spell_damage": 1.25, "spell_crit": 0.85, "spirit": 0.7},
+    ("Druid", "Restoration"): {"spell_healing": 1.25, "spell_damage": 0.0, "spirit": 1.0, "mp5": 1.1},
+    ("Druid", "Balance"): {"spell_healing": 0.0, "spell_damage": 1.2, "spell_crit": 0.8, "spirit": 0.75},
+    ("Druid", "Feral"): {"spell_healing": 0.0, "spell_damage": 0.0, "agility": 1.0, "strength": 0.7, "attack_power": 0.9, "crit": 0.8, "hit": 0.75},
+    ("Shaman", "Restoration"): {"spell_healing": 1.25, "spell_damage": 0.0, "spirit": 0.9, "mp5": 1.15},
+    ("Shaman", "Elemental"): {"spell_healing": 0.0, "spell_damage": 1.2, "spell_crit": 0.85, "intellect": 1.1},
+    ("Shaman", "Enhancement"): {"spell_healing": 0.0, "spell_damage": 0.0, "agility": 0.95, "strength": 0.65, "attack_power": 0.9, "crit": 0.8, "hit": 0.75},
+    ("Paladin", "Holy"): {"spell_healing": 1.25, "spell_damage": 0.0, "intellect": 1.1, "spirit": 0.8, "mp5": 1.0},
+    ("Paladin", "Protection"): {"spell_healing": 0.0, "spell_damage": 0.0, "strength": 0.85, "defense": 0.8, "stamina": 0.8, "dodge": 0.7, "parry": 0.7, "block": 0.7},
+    ("Paladin", "Retribution"): {"spell_healing": 0.0, "spell_damage": 0.0, "strength": 1.15, "attack_power": 0.9, "crit": 0.8, "hit": 0.75},
+    ("Warrior", "Protection"): {"strength": 0.9, "defense": 0.9, "stamina": 0.9, "dodge": 0.75, "parry": 0.75, "block": 0.75},
+    ("Warrior", "Arms"): {"strength": 1.1, "attack_power": 0.9, "crit": 0.8, "hit": 0.75},
+    ("Warrior", "Fury"): {"strength": 1.1, "attack_power": 0.95, "crit": 0.85, "hit": 0.8},
+    ("Hunter", "Beast Mastery"): {"agility": 1.1, "attack_power": 0.95, "crit": 0.8, "hit": 0.8},
+    ("Hunter", "Marksmanship"): {"agility": 1.1, "attack_power": 1.0, "crit": 0.85, "hit": 0.8},
+    ("Hunter", "Survival"): {"agility": 1.1, "attack_power": 0.95, "crit": 0.8, "hit": 0.8},
+    ("Rogue", "Assassination"): {"agility": 1.15, "attack_power": 0.95, "crit": 0.8, "hit": 0.85},
+    ("Rogue", "Combat"): {"agility": 1.1, "attack_power": 1.0, "crit": 0.85, "hit": 0.9},
+    ("Rogue", "Subtlety"): {"agility": 1.15, "attack_power": 0.95, "crit": 0.85, "hit": 0.8},
+    ("Mage", "Arcane"): {"spell_damage": 1.25, "spell_healing": 0.0, "intellect": 1.1, "spell_crit": 0.8},
+    ("Mage", "Fire"): {"spell_damage": 1.25, "spell_healing": 0.0, "intellect": 1.05, "spell_crit": 0.9},
+    ("Mage", "Frost"): {"spell_damage": 1.25, "spell_healing": 0.0, "intellect": 1.05, "spell_crit": 0.85},
+    ("Warlock", "Affliction"): {"spell_damage": 1.25, "spell_healing": 0.0, "intellect": 1.0, "spell_crit": 0.8},
+    ("Warlock", "Demonology"): {"spell_damage": 1.25, "spell_healing": 0.0, "intellect": 1.0, "spell_crit": 0.8},
+    ("Warlock", "Destruction"): {"spell_damage": 1.25, "spell_healing": 0.0, "intellect": 1.0, "spell_crit": 0.9},
+}
+
+def stat_weights(class_name: str, spec: str | None = None) -> dict[str, float]:
+    weights = dict(STAT_WEIGHTS.get(class_name, DEFAULT_WEIGHTS))
+    if spec:
+        override = SPEC_WEIGHT_OVERRIDES.get((class_name, spec))
+        if override:
+            weights.update(override)
+    return weights
+
+def relevant_item_stats(item: dict[str, Any], class_name: str, spec: str | None = None) -> list[str]:
+    weights = stat_weights(class_name, spec)
+    return [
+        f"+{float(stat.get('value')):g} {stat.get('name')}"
+        for stat in (item.get("stats") or [])
+        if isinstance(stat, dict) and stat.get("name") and stat.get("value") is not None
+        and weights.get(_stat_key(str(stat.get("name"))), 0.0) > 0
+    ]
 
 SLOT_MAP = {
     "head": "Head", "neck": "Neck", "shoulder": "Shoulders",
@@ -126,8 +177,8 @@ def normalise_stats(raw_stats: Any) -> dict[str, float]:
 def slot_key(value: str | None) -> str | None:
     return SLOT_MAP.get((value or "").strip().casefold())
 
-def item_score(item: dict[str, Any], class_name: str) -> float:
-    weights = STAT_WEIGHTS.get(class_name, DEFAULT_WEIGHTS)
+def item_score(item: dict[str, Any], class_name: str, spec: str | None = None) -> float:
+    weights = stat_weights(class_name, spec)
     stats = normalise_stats(item.get("stats"))
     score = sum(value * weights.get(key, 0.0) for key, value in stats.items())
     try:
@@ -186,13 +237,13 @@ def item_is_usable(item: dict[str, Any], class_name: str, level: int) -> bool:
         return any(token in subclass for token in allowed)
     return False
 
-def _current_scores(gear: list[dict[str, Any]], class_name: str) -> dict[str, list[tuple[float, dict[str, Any]]]]:
+def _current_scores(gear: list[dict[str, Any]], class_name: str, spec: str | None = None) -> dict[str, list[tuple[float, dict[str, Any]]]]:
     slots: dict[str, list[tuple[float, dict[str, Any]]]] = {}
     for item in gear:
         key = slot_key(item.get("slot"))
         if not key:
             continue
-        slots.setdefault(key, []).append((item_score(item, class_name), item))
+        slots.setdefault(key, []).append((item_score(item, class_name, spec), item))
     return slots
 
 def _clean_source_name(value: str | None) -> str:
@@ -233,7 +284,8 @@ def recommend_dungeons(character: dict[str, Any], gear: list[dict[str, Any]],
     level = int(character.get("level") or 0)
     class_name = character.get("class") or "Unknown"
     faction = (character.get("faction") or "").casefold()
-    current = _current_scores(gear, class_name)
+    spec = character.get("spec") or None
+    current = _current_scores(gear, class_name, spec)
     ranked = []
     catalog_dungeons = [d for d in DUNGEONS
         if d.get("bosses") and int(d.get("min_level") or 0) <= level <= int(d.get("max_level") or 0)
@@ -250,7 +302,7 @@ def recommend_dungeons(character: dict[str, Any], gear: list[dict[str, Any]],
                 key = slot_key(item.get("inventory_type"))
                 if not key:
                     continue
-                score = item_score(item, class_name)
+                score = item_score(item, class_name, spec)
                 equipped = current.get(key, [])
                 inventory_type = (item.get("inventory_type") or "").casefold()
                 if key in ("Ring", "Trinket"):
@@ -299,11 +351,7 @@ def recommend_dungeons(character: dict[str, Any], gear: list[dict[str, Any]],
                     "item_data_source": item.get("data_source") or "Unknown",
                     "drop_chance": drop_chance,
                     "drop_rate_verified": drop_chance is not None, "drop_observed": observed, "drop_encounters": encounters,
-                    "stats": [
-                        f"+{float(stat.get('value')):g} {stat.get('name')}"
-                        for stat in (item.get("stats") or [])
-                        if isinstance(stat, dict) and stat.get("name") and stat.get("value") is not None
-                    ],
+                    "stats": relevant_item_stats(item, class_name, spec),
                 }
                 possible_upgrades.append(candidate)
                 slot_candidates.setdefault(key, []).append(candidate)
