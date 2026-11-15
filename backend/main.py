@@ -17,6 +17,7 @@ REGION_LOCALES = {"us": "en_US", "eu": "en_GB", "kr": "ko_KR", "tw": "zh_TW"}
 REGION_WEB_LOCALES = {"us": "en-us", "eu": "en-gb", "kr": "ko-kr", "tw": "zh-tw"}
 TOKEN_CACHE = {"access_token": None, "expires_at": 0}
 ITEM_CACHE = {}
+ITEM_ICON_CACHE = {}
 
 class ScanRequest(BaseModel):
     region: Literal["us", "eu", "kr", "tw"] = "us"
@@ -375,6 +376,53 @@ async def _wowhead_item_data(client, item_id):
     except httpx.HTTPError:
         return {"http_status": None, "item_id": int(item_id), "parsed": False, "error": "request_error"}
 
+async def _wowhead_item_icon(client, item_id):
+    """Return the Wowhead-hosted item icon, cached for this process."""
+    item_id = int(item_id)
+    if item_id in ITEM_ICON_CACHE:
+        return ITEM_ICON_CACHE[item_id]
+    try:
+        response = await client.get(
+            f"https://nether.wowhead.com/tooltip/item/{item_id}",
+            params={"dataEnv": 16, "locale": 0, "json": 1},
+            headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json",
+                     "Referer": "https://www.wowhead.com/forever/"},
+            timeout=8)
+        data = response.json() if response.status_code == 200 else {}
+        icon = data.get("icon") if isinstance(data, dict) else None
+        icon_url = data.get("iconUrl") if isinstance(data, dict) else None
+        if not icon_url and isinstance(icon, str) and re.fullmatch(r"[a-z0-9_]+", icon, re.I):
+            icon_url = f"https://wow.zamimg.com/images/wow/icons/large/{icon}.jpg"
+        ITEM_ICON_CACHE[item_id] = icon_url
+        return icon_url
+    except (httpx.HTTPError, ValueError, TypeError):
+        ITEM_ICON_CACHE[item_id] = None
+        return None
+
+
+async def _attach_item_icons(client, gear, recommendations):
+    gear_ids = [int(item["id"]) for item in gear if item.get("id")]
+    recommendation_ids = [
+        int(item["item_id"])
+        for dungeon in (recommendations.get("rankings") or [])[:3]
+        for item in (dungeon.get("upgrades") or [])
+        if item.get("item_id")
+    ]
+    ids = list(dict.fromkeys(gear_ids + recommendation_ids))
+    semaphore = asyncio.Semaphore(8)
+    async def load(item_id):
+        async with semaphore:
+            return item_id, await _wowhead_item_icon(client, item_id)
+    icons = dict(await asyncio.gather(*(load(item_id) for item_id in ids)))
+    for item in gear:
+        if item.get("id"):
+            item["icon_url"] = icons.get(int(item["id"]))
+    for dungeon in (recommendations.get("rankings") or [])[:3]:
+        for item in (dungeon.get("upgrades") or []):
+            if item.get("item_id"):
+                item["icon_url"] = icons.get(int(item["item_id"]))
+
+
 async def _thottbot_item_data(client, item_id):
     status, payload = await _thottbot_get(client, f"items/{int(item_id)}")
     if status != 200 or not isinstance(payload, dict):
@@ -661,6 +709,8 @@ async def scan(req: ScanRequest):
                     "level": character.get("level"), "class": char_class, "spec": spec,
                     "faction": faction.title() if isinstance(faction, str) else "Unknown",
                 }, gear)
+            if gear:
+                await _attach_item_icons(client, gear, dungeon_recommendations)
         soup = BeautifulSoup(profile_response.text, "html.parser")
         return {"source_url": str(profile_response.url),
             "page_title": soup.title.get_text(" ", strip=True) if soup.title else "WoW Forever Armory",
