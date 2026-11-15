@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from typing import Literal
 from backend.recommendations import DUNGEONS, recommend_dungeons
 
-app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.5.2")
+app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.5.3")
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "frontend" / "dist"
 REGION_LOCALES = {"us": "en_US", "eu": "en_GB", "kr": "ko_KR", "tw": "zh_TW"}
@@ -583,34 +583,34 @@ async def _static_item_diagnostic(client, token, region, item_id):
         response = await client.get(url,
             params={"namespace": f"static-forever-{region}", "locale": REGION_LOCALES[region]},
             headers={"Authorization": f"Bearer {token}"})
-        if response.status_code == 200:
-            data = response.json()
-            preview = data.get("preview_item") or {}
-            stats = preview.get("stats") or data.get("stats") or []
-            return {
-                "item_id": int(item_id), "source": "Blizzard",
-                "http_status": 200, "name": data.get("name"),
-                "top_keys": sorted(data.keys()),
-                "required_level": data.get("required_level"),
-                "inventory_type": _api_name(data.get("inventory_type")),
-                "item_class": _api_name(data.get("item_class")),
-                "item_subclass": _api_name(data.get("item_subclass")),
-                "preview_keys": sorted(preview.keys()),
-                "item_level": _numeric_value(preview.get("level") or data.get("level")),
-                "stats": [
-                    {"name": (s.get("type") or {}).get("name") if isinstance(s.get("type"), dict) else s.get("name"),
-                     "value": s.get("value")} for s in stats if isinstance(s, dict)
-                ],
-            }
+        static_status = response.status_code
         twdb = await client.get(f"https://thewowdb.com/api/v1/forever/item/{int(item_id)}",
             headers={"User-Agent": "WoWForeverDungeonAdvisor/0.5 (+https://github.com/mamattingly/FindMyUpgrade)",
                      "Accept": "application/json"}, timeout=8)
-        if twdb.status_code == 200:
+        twdb_status = twdb.status_code
+        wowhead = await _wowhead_item_data(client, item_id)
+        if wowhead.get("parsed"):
+            return {
+                "item_id": int(item_id), "source": "Wowhead Forever",
+                "blizzard_http_status": static_status, "thewowdb_http_status": twdb_status,
+                "http_status": 200, "name": wowhead.get("name"),
+                "required_level": wowhead.get("required_level"),
+                "inventory_type": wowhead.get("inventory_type"),
+                "item_class": wowhead.get("item_class"),
+                "item_subclass": wowhead.get("item_subclass"),
+                "item_level": wowhead.get("item_level"),
+                "stats": wowhead.get("stats"),
+                "drop_source_name": wowhead.get("drop_source_name"),
+                "drop_chance": wowhead.get("drop_chance"),
+                "data_url": wowhead.get("data_url"),
+            }
+        if twdb_status == 200:
             raw = twdb.json()
             normal = _normalise_thewowdb_item(raw, item_id)
             return {
                 "item_id": int(item_id), "source": "TheWoWDB",
-                "blizzard_http_status": response.status_code, "http_status": 200,
+                "blizzard_http_status": static_status, "thewowdb_http_status": twdb_status,
+                "wowhead_http_status": wowhead.get("http_status"), "http_status": 200,
                 "name": normal.get("name"), "top_keys": sorted(raw.keys()),
                 "required_level": normal.get("required_level"),
                 "inventory_type": normal.get("inventory_type"),
@@ -619,9 +619,28 @@ async def _static_item_diagnostic(client, token, region, item_id):
                 "item_level": normal.get("item_level"), "stats": normal.get("stats"),
                 "data_url": normal.get("data_url"),
             }
+        if static_status == 200:
+            data = response.json()
+            preview = data.get("preview_item") or {}
+            stats = preview.get("stats") or data.get("stats") or []
+            return {
+                "item_id": int(item_id), "source": "Blizzard",
+                "blizzard_http_status": static_status, "thewowdb_http_status": twdb_status,
+                "wowhead_http_status": wowhead.get("http_status"), "http_status": 200,
+                "name": data.get("name"), "top_keys": sorted(data.keys()),
+                "required_level": data.get("required_level"),
+                "inventory_type": _api_name(data.get("inventory_type")),
+                "item_class": _api_name(data.get("item_class")),
+                "item_subclass": _api_name(data.get("item_subclass")),
+                "item_level": _numeric_value(preview.get("level") or data.get("level")),
+                "stats": [
+                    {"name": (s.get("type") or {}).get("name") if isinstance(s.get("type"), dict) else s.get("name"),
+                     "value": s.get("value")} for s in stats if isinstance(s, dict)
+                ],
+            }
         return {"item_id": int(item_id), "source": None,
-                "blizzard_http_status": response.status_code, "thewowdb_http_status": twdb.status_code,
-                "http_status": None}
+                "blizzard_http_status": static_status, "thewowdb_http_status": twdb_status,
+                "wowhead_http_status": wowhead.get("http_status"), "http_status": None}
     except (httpx.HTTPError, ValueError, TypeError):
         return {"item_id": int(item_id), "http_status": None, "error": "request_or_json_error"}
 
