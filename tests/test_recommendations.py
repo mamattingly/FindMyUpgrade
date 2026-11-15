@@ -1,4 +1,4 @@
-from backend import recommendations as rec
+from backend import recommendations as rec\nfrom backend.main import _parse_wowhead_item_page
 
 
 def test_normalise_stats_from_blizzard_shape():
@@ -54,3 +54,30 @@ def test_recommendation_selects_dungeon_with_real_slot_upgrades(monkeypatch):
     assert result["recommended"]["upgrade_slots"] == 1
     assert result["recommended"]["best_upgrade"]["name"] == "Better Robe"
     assert result["drop_rates_available"] is True
+
+
+def test_wowhead_forever_item_parser_extracts_stats_and_drop_chance():
+    page = """
+    <html><head><title>Illusionary Rod - Item - WoW Forever</title></head>
+    <body>
+      <h1>Illusionary Rod</h1>
+      <div>Item Level 39</div>
+      <div>Binds when picked up</div>
+      <div>Two-Hand Staff</div>
+      <div>70 - 105 Damage Speed 3.40</div>
+      <div>(25.74 damage per second)</div>
+      <div>+10 Stamina</div><div>+6 Intellect</div><div>+7 Spirit</div>
+      <div>Requires Level 34</div>
+      <div>Equip: Improves your chance to get a critical strike by 1.0%.</div>
+      <div>Equip: Increases damage and healing done by magical spells and effects by up to 44.</div>
+      <div>Dropped by: Arcanist Doan Drop Chance: 30.62%</div>
+    </body></html>
+    """
+    item = _parse_wowhead_item_page(page, 7713)
+    assert item["name"] == "Illusionary Rod"
+    assert item["inventory_type"] == "Two-Hand"
+    assert item["item_subclass"] == "Staff"
+    assert item["required_level"] == 34
+    assert item["drop_source_name"] == "Arcanist Doan"
+    assert item["drop_chance"] == 30.62
+    assert {x["name"] for x in item["stats"]} >= {"Stamina", "Intellect", "Spirit", "Spell Healing"}
