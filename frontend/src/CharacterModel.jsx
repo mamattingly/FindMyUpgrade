@@ -25,6 +25,10 @@ const FIELD_BY_OPTION={
 
 function getViewerCustomization(modelData,fullOptions){
  const values={};
+ for(const option of fullOptions?.Options||[]){
+  const field=FIELD_BY_OPTION[option.Name];
+  if(field&&values[field]===undefined)values[field]=0;
+ }
  for(const entry of modelData.customizations||[]){
   const option=fullOptions?.Options?.find(x=>Number(x.Id)===Number(entry.option_id));
   if(!option)continue;
