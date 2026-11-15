@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from typing import Literal
 from backend.recommendations import DUNGEONS, recommend_dungeons
 
-app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.6.1")
+app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.6.2")
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "frontend" / "dist"
 REGION_LOCALES = {"us": "en_US", "eu": "en_GB", "kr": "ko_KR", "tw": "zh_TW"}
@@ -343,20 +343,37 @@ async def _warcraftdb_item_data(client, item_id):
 
 async def _wowhead_item_data(client, item_id):
     try:
-        response = await client.get(f"https://www.wowhead.com/forever/item={int(item_id)}",
+        response = await client.get(
+            f"https://nether.wowhead.com/tooltip/item/{int(item_id)}",
+            params={"dataEnv": 16, "locale": 0, "json": 1},
             headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-                     "Accept": "text/html,application/xhtml+xml", "Accept-Language": "en-US,en;q=0.9",
-                     "Referer": "https://www.wowhead.com/"}, timeout=12)
+                     "Accept": "application/json,text/plain,*/*", "Referer": "https://www.wowhead.com/forever/"},
+            timeout=12)
         if response.status_code != 200:
-            return {"http_status": response.status_code, "item_id": int(item_id)}
-        parsed = _parse_wowhead_item_page(response.text, item_id)
-        if not parsed:
+            return {"http_status": response.status_code, "item_id": int(item_id), "parsed": False,
+                    "body_prefix": response.text[:160]}
+        try:
+            data = response.json()
+        except ValueError:
             return {"http_status": 200, "item_id": int(item_id), "parsed": False,
-                    "page_title": BeautifulSoup(response.text, "html.parser").title.get_text(" ", strip=True)
-                    if BeautifulSoup(response.text, "html.parser").title else None}
-        return {"http_status": 200, "parsed": True, **parsed}
+                    "content_type": response.headers.get("content-type"),
+                    "body_prefix": response.text[:300]}
+        if isinstance(data, str):
+            tooltip_html, name = data, None
+        elif isinstance(data, dict):
+            tooltip_html = data.get("tooltip") or data.get("html") or data.get("tooltipHtml") or data.get("tooltip_html") or ""
+            name = data.get("name")
+        else:
+            tooltip_html, name = "", None
+        parsed = _parse_tooltip_fragment(
+            tooltip_html, item_id, name=name,
+            data_url=f"https://www.wowhead.com/forever/item={int(item_id)}",
+            data_source="Wowhead Forever")
+        return {"http_status": 200, "parsed": bool(parsed.get("name") and parsed.get("stats")),
+                "response_keys": sorted(data.keys()) if isinstance(data, dict) else [],
+                **parsed}
     except httpx.HTTPError:
-        return {"http_status": None, "item_id": int(item_id), "error": "request_error"}
+        return {"http_status": None, "item_id": int(item_id), "parsed": False, "error": "request_error"}
 
 async def _thottbot_item_data(client, item_id):
     status, payload = await _thottbot_get(client, f"items/{int(item_id)}")
@@ -891,6 +908,19 @@ async def static_namespace_diagnostics(ids: str = "7711,7713,7714,281290"):
                     variants.append({"namespace": namespace, "http_status": None})
             results.append({"item_id": item_id, "variants": variants})
         return {"app_version": app.version, "token_available": True, "items": results}
+
+
+@app.get("/api/wowhead-tooltip-diagnostics")
+async def wowhead_tooltip_diagnostics(ids: str = "7711,7713,7714"):
+    try:
+        item_ids = [int(x.strip()) for x in ids.split(",") if x.strip()]
+    except ValueError:
+        raise HTTPException(400, "Item IDs must be comma-separated integers.")
+    if not item_ids or len(item_ids) > 12:
+        raise HTTPException(400, "Supply between 1 and 12 item IDs.")
+    async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+        items = [await _wowhead_item_data(client, item_id) for item_id in item_ids]
+    return {"app_version": app.version, "data_env": 16, "items": items}
 
 @app.post("/api/analyze")
 async def analyze(payload: dict):
