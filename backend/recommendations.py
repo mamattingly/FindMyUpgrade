@@ -58,19 +58,20 @@ DEFAULT_WEIGHTS = {"intellect": 0.8, "strength": 0.7, "agility": 0.7,
 # Classic-era stat weights are deliberately broad leveling estimates. Spec
 # overrides prevent irrelevant damage/healing stats from leaking into the UI.
 SPEC_WEIGHT_OVERRIDES = {
-    ("Priest", "Discipline"): {"spell_healing": 1.25, "spell_damage": 0.0, "spell_crit": 0.9, "spirit": 1.0, "mp5": 1.1},
-    ("Priest", "Holy"): {"spell_healing": 1.3, "spell_damage": 0.0, "spell_crit": 0.85, "spirit": 1.0, "mp5": 1.15},
+    # Healing specs explicitly suppress physical-DPS stats inherited from class baselines.
+    ("Priest", "Discipline"): {"spell_healing": 1.3, "spell_damage": 0.0, "spell_crit": 0.95, "spirit": 1.0, "mp5": 1.1, "strength": 0.0, "agility": 0.0, "attack_power": 0.0, "hit": 0.0, "expertise": 0.0},
+    ("Priest", "Holy"): {"spell_healing": 1.35, "spell_damage": 0.0, "spell_crit": 0.9, "spirit": 1.0, "mp5": 1.15, "strength": 0.0, "agility": 0.0, "attack_power": 0.0, "hit": 0.0, "expertise": 0.0},
     ("Priest", "Shadow"): {"spell_healing": 0.0, "spell_damage": 1.25, "spell_crit": 0.85, "spirit": 0.7},
-    ("Druid", "Restoration"): {"spell_healing": 1.25, "spell_damage": 0.0, "spirit": 1.0, "mp5": 1.1},
+    ("Druid", "Restoration"): {"spell_healing": 1.3, "spell_damage": 0.0, "spirit": 1.0, "mp5": 1.1, "strength": 0.0, "agility": 0.0, "attack_power": 0.0, "hit": 0.0, "expertise": 0.0},
     ("Druid", "Balance"): {"spell_healing": 0.0, "spell_damage": 1.2, "spell_crit": 0.8, "spirit": 0.75},
     ("Druid", "Feral"): {"spell_healing": 0.0, "spell_damage": 0.0, "agility": 1.0, "strength": 0.7, "attack_power": 0.9, "crit": 0.8, "hit": 0.75},
-    ("Shaman", "Restoration"): {"spell_healing": 1.25, "spell_damage": 0.0, "spirit": 0.9, "mp5": 1.15},
+    ("Shaman", "Restoration"): {"spell_healing": 1.3, "spell_damage": 0.0, "spirit": 0.95, "mp5": 1.2, "strength": 0.0, "agility": 0.0, "attack_power": 0.0, "hit": 0.0, "expertise": 0.0},
     ("Shaman", "Elemental"): {"spell_healing": 0.0, "spell_damage": 1.2, "spell_crit": 0.85, "intellect": 1.1},
     ("Shaman", "Enhancement"): {"spell_healing": 0.0, "spell_damage": 0.0, "agility": 0.95, "strength": 0.65, "attack_power": 0.9, "crit": 0.8, "hit": 0.75},
-    ("Paladin", "Holy"): {"spell_healing": 1.25, "spell_damage": 0.0, "intellect": 1.1, "spirit": 0.8, "mp5": 1.0},
-    ("Paladin", "Protection"): {"spell_healing": 0.0, "spell_damage": 0.0, "strength": 0.85, "defense": 0.8, "stamina": 0.8, "dodge": 0.7, "parry": 0.7, "block": 0.7},
+    ("Paladin", "Holy"): {"spell_healing": 1.3, "spell_damage": 0.0, "intellect": 1.15, "spirit": 0.8, "mp5": 1.0, "strength": 0.0, "agility": 0.0, "attack_power": 0.0, "hit": 0.0, "expertise": 0.0},
+    ("Paladin", "Protection"): {"spell_healing": 0.0, "spell_damage": 0.0, "strength": 0.85, "defense": 0.9, "stamina": 0.9, "dodge": 0.8, "parry": 0.8, "block": 0.8, "agility": 0.0, "attack_power": 0.0, "hit": 0.0, "expertise": 0.0},
     ("Paladin", "Retribution"): {"spell_healing": 0.0, "spell_damage": 0.0, "strength": 1.15, "attack_power": 0.9, "crit": 0.8, "hit": 0.75},
-    ("Warrior", "Protection"): {"strength": 0.9, "defense": 0.9, "stamina": 0.9, "dodge": 0.75, "parry": 0.75, "block": 0.75, "spell_damage": 0.0, "spell_healing": 0.0},
+    ("Warrior", "Protection"): {"strength": 0.9, "defense": 1.0, "stamina": 1.0, "dodge": 0.8, "parry": 0.8, "block": 0.8, "spell_damage": 0.0, "spell_healing": 0.0, "agility": 0.0, "attack_power": 0.0, "hit": 0.0, "expertise": 0.0},
     ("Warrior", "Arms"): {"strength": 1.1, "attack_power": 0.9, "crit": 0.8, "hit": 0.75},
     ("Warrior", "Fury"): {"strength": 1.1, "attack_power": 0.95, "crit": 0.85, "hit": 0.8},
     ("Hunter", "Beast Mastery"): {"agility": 1.1, "attack_power": 0.95, "crit": 0.8, "hit": 0.8},
@@ -192,10 +193,18 @@ def item_score(item: dict[str, Any], class_name: str, spec: str | None = None) -
             score += float(item.get("item_level") or 0) * 0.02
         except (TypeError, ValueError):
             pass
-    try:
-        score += float(item.get("weapon_dps") or 0) * (0.10 if class_name in ("Priest", "Mage", "Warlock") else 0.65)
-    except (TypeError, ValueError):
-        pass
+    # Weapon DPS must not make healer or tank weapons outrank role gear.
+    melee_damage_specs = {
+        ("Druid", "Feral"), ("Shaman", "Enhancement"),
+        ("Paladin", "Retribution"), ("Warrior", "Arms"), ("Warrior", "Fury"),
+        ("Hunter", "Beast Mastery"), ("Hunter", "Marksmanship"), ("Hunter", "Survival"),
+        ("Rogue", "Assassination"), ("Rogue", "Combat"), ("Rogue", "Subtlety"),
+    }
+    if (class_name, spec) in melee_damage_specs:
+        try:
+            score += float(item.get("weapon_dps") or 0) * 0.35
+        except (TypeError, ValueError):
+            pass
     return round(score, 3)
 
 def item_is_usable(item: dict[str, Any], class_name: str, level: int) -> bool:
@@ -286,6 +295,14 @@ def recommend_dungeons(character: dict[str, Any], gear: list[dict[str, Any]],
     class_name = character.get("class") or "Unknown"
     faction = (character.get("faction") or "").casefold()
     spec = character.get("spec") or None
+    if not spec or str(spec).casefold() in {"unknown", "none", "unavailable"}:
+        return {
+            "status": "specialization_unavailable",
+            "message": "The active specialization could not be verified. Refresh the character profile before showing gear recommendations; generic DPS-biased scoring is intentionally disabled.",
+            "recommended": None, "rankings": [], "dungeons_checked": 0,
+            "items_evaluated": len(item_data), "scoring": "awaiting_verified_specialization",
+            "drop_rates_available": False, "run_times_available": False,
+        }
     current = _current_scores(gear, class_name, spec)
     ranked = []
     catalog_dungeons = [d for d in DUNGEONS
