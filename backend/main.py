@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from typing import Literal
 from backend.recommendations import DUNGEONS, recommend_dungeons
 
-app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.7.0")
+app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.7.1")
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "frontend" / "dist"
 REGION_LOCALES = {"us": "en_US", "eu": "en_GB", "kr": "ko_KR", "tw": "zh_TW"}
@@ -709,8 +709,6 @@ async def scan(req: ScanRequest):
                     "level": character.get("level"), "class": char_class, "spec": spec,
                     "faction": faction.title() if isinstance(faction, str) else "Unknown",
                 }, gear)
-            if gear:
-                await _attach_item_icons(client, gear, dungeon_recommendations)
         soup = BeautifulSoup(profile_response.text, "html.parser")
         return {"source_url": str(profile_response.url),
             "page_title": soup.title.get_text(" ", strip=True) if soup.title else "WoW Forever Armory",
@@ -722,6 +720,29 @@ async def scan(req: ScanRequest):
             "dungeon_recommendations": dungeon_recommendations,
             "scan_status": "profile_found" if char_class and character.get("level") else "profile_found_partial",
             "message": "Character verified. Gear, specialization and profession skills were retrieved from Blizzard's profile API." if api_status == "connected" else "Character verified, but automatic gear and dungeon analysis could not complete. Check the API connection status."}
+
+@app.get("/api/item-icons")
+async def item_icons(ids: str):
+    """Load item artwork separately so image latency never blocks character analysis."""
+    try:
+        item_ids = list(dict.fromkeys(int(x.strip()) for x in ids.split(",") if x.strip()))
+    except ValueError:
+        raise HTTPException(400, "Item IDs must be comma-separated integers.")
+    if not item_ids or len(item_ids) > 50:
+        raise HTTPException(400, "Supply between 1 and 50 item IDs.")
+    semaphore = asyncio.Semaphore(10)
+    async def load(item_id):
+        async with semaphore:
+            return str(item_id), await _wowhead_item_icon(
+                httpx.AsyncClient(timeout=10, follow_redirects=True), item_id)
+    # A shared client reuses connections across the icon batch.
+    async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
+        async def fetch_icon(item_id):
+            async with semaphore:
+                return str(item_id), await _wowhead_item_icon(client, item_id)
+        results = await asyncio.gather(*(fetch_icon(item_id) for item_id in item_ids))
+    return {"icons": {item_id: url for item_id, url in results if url}}
+
 
 @app.get("/api/diagnostics")
 async def diagnostics(region: Literal["us", "eu", "kr", "tw"] = "us", name: str = "Faith Heal"):
