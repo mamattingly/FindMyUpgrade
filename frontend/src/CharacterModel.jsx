@@ -23,19 +23,12 @@ const FIELD_BY_OPTION={
  "Sideburns":"facialStyle","Ears":"ears","Fur Color":"furColor","Snout":"snout"
 };
 
-function getViewerCustomization(modelData,fullOptions){
+function getViewerCustomization(modelData){
  const values={};
- for(const option of fullOptions?.Options||[]){
-  const field=FIELD_BY_OPTION[option.Name];
-  if(field&&values[field]===undefined)values[field]=0;
- }
  for(const entry of modelData.customizations||[]){
-  const option=fullOptions?.Options?.find(x=>Number(x.Id)===Number(entry.option_id));
-  if(!option)continue;
-  const field=FIELD_BY_OPTION[option.Name];
-  if(!field)continue;
-  const choiceIndex=(option.Choices||[]).findIndex(x=>Number(x.Id)===Number(entry.choice_id));
-  if(choiceIndex>=0)values[field]=choiceIndex;
+  const field=FIELD_BY_OPTION[entry.option_name];
+  const displayOrder=Number(entry.display_order);
+  if(field&&Number.isInteger(displayOrder)&&displayOrder>=0)values[field]=displayOrder;
  }
  return values;
 }
@@ -67,11 +60,10 @@ export default function CharacterModel({modelData,armoryRenderUrl,name}){
     const library=await import("wow-model-viewer");
     // The Classic model metadata uses its own customization and equipment tables.
     window.WOTLK_TO_RETAIL_DISPLAY_ID_API=undefined;
-    const fullOptions=await library.findRaceGenderOptions(Number(modelData.race),Number(modelData.gender));
     const character={
      race:Number(modelData.race),
      gender:Number(modelData.gender),
-     ...getViewerCustomization(modelData,fullOptions),
+     ...getViewerCustomization(modelData),
      items:modelData.items
     };
     viewer=await library.generateModels(1.45,"#"+id,character,"classic");
