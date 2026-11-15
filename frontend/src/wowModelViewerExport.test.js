@@ -86,6 +86,12 @@ test("refuses export when exact customization option/choice IDs are unavailable"
   assert.throws(() => buildWmvCharacterXml(data), /original customization IDs/);
 });
 
+test("requires at least one exact customization choice", () => {
+  const data = sampleCharacter({ customizations: [] });
+  assert.equal(canExportWmvCharacter(data), false);
+  assert.throws(() => buildWmvCharacterXml(data), /original customization IDs/);
+});
+
 test("refuses races without a verified Classic model directory", () => {
   const data = sampleCharacter({ race: 99 });
   assert.equal(canExportWmvCharacter(data), false);
