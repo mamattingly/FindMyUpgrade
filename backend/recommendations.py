@@ -273,35 +273,49 @@ def recommend_dungeons(character: dict[str, Any], gear: list[dict[str, Any]],
                     "item_url": item.get("data_url") or f"https://www.wowhead.com/forever/item={int(item_id)}",
                     "item_data_source": item.get("data_source") or "Unknown",
                     "drop_chance": drop_chance,
+                    "drop_rate_verified": drop_chance is not None,
                     "stats": item.get("stats_display") or [],
                 }
                 possible_upgrades.append(candidate)
-                if drop_chance is not None:
-                    slot_candidates.setdefault(key, []).append(candidate)
+                slot_candidates.setdefault(key, []).append(candidate)
         slot_results = []
         for slot, candidates in slot_candidates.items():
-            expected, ordered = _expected_best_gain(candidates)
-            if expected > 0:
-                best = ordered[0]
-                slot_results.append({
-                    **best, "expected_gain": expected,
-                    "slot_candidate_count": len(candidates),
-                })
-        slot_results.sort(key=lambda x: x["expected_gain"], reverse=True)
-        total_expected = round(sum(x["expected_gain"] for x in slot_results), 3)
+            # Use the strongest upgrade for each slot. When a verified chance
+            # exists, show its expected contribution; otherwise keep it as a
+            # clearly-labelled potential upgrade rather than inventing odds.
+            best = max(candidates, key=lambda x: x["gain"])
+            expected_gain = (
+                round(best["gain"] * float(best["drop_chance"]) / 100.0, 3)
+                if best.get("drop_chance") is not None else None
+            )
+            slot_results.append({
+                **best, "expected_gain": expected_gain,
+                "slot_candidate_count": len(candidates),
+            })
+        verified = [x for x in slot_results if x.get("drop_rate_verified")]
+        coverage = round(len(verified) / len(slot_results), 2) if slot_results else 0
+        full_drop_data = bool(slot_results) and len(verified) == len(slot_results)
+        slot_results.sort(
+            key=lambda x: (x["expected_gain"] if full_drop_data else x["gain"]),
+            reverse=True)
+        potential_score = round(sum(x["gain"] for x in slot_results), 3)
+        expected_score = round(sum(x["expected_gain"] or 0 for x in slot_results), 3) if full_drop_data else None
+        rank_score = expected_score if full_drop_data else potential_score
         if not slot_results:
             continue
         ranked.append({
             "name": dungeon["name"], "min_level": dungeon["min_level"],
-            "max_level": dungeon["max_level"], "score": total_expected,
-            "score_label": "Expected upgrade value per full run",
+            "max_level": dungeon["max_level"], "score": rank_score,
+            "potential_score": potential_score, "expected_score": expected_score,
+            "score_label": "Expected upgrade value per full run" if full_drop_data else "Potential upgrade score",
             "upgrade_slots": len(slot_results), "best_upgrade": slot_results[0],
             "upgrades": slot_results[:6], "possible_upgrade_count": len(possible_upgrades),
+            "drop_rate_coverage": coverage,
             "source_url": dungeon.get("source_url"),
             "faction_requirement": dungeon.get("faction"),
             "access_requirement": dungeon.get("access_requirement"),
         })
-    ranked.sort(key=lambda x: (x["score"], x["upgrade_slots"], x["best_upgrade"]["expected_gain"]), reverse=True)
+    ranked.sort(key=lambda x: (x["score"], x["upgrade_slots"], x["best_upgrade"]["gain"]), reverse=True)
     if not catalog_dungeons:
         status = "no_dungeon_catalog"
         message = "No sourced dungeon loot catalog is available for this character's current level and faction."
@@ -309,16 +323,20 @@ def recommend_dungeons(character: dict[str, Any], gear: list[dict[str, Any]],
         status = "data_unavailable"
         message = "Forever item data could not be loaded, so no dungeon ranking was calculated."
     elif not ranked:
-        status = "drop_rates_unavailable"
-        message = "No verified usable dungeon upgrade with a matching boss drop chance was found in the current-level catalog."
+        status = "no_upgrades_found"
+        message = "No usable dungeon drops in the current-level catalog scored above the equipped gear."
+    elif any(x["drop_rate_coverage"] < 1 for x in ranked):
+        status = "partial_data"
+        message = "Ranked by stat-weighted upgrade potential. Verified drop chances are shown where available; missing chances are not estimated."
     else:
         status = "ready"
-        message = "Ranked by expected stat-weighted upgrade value per full dungeon run, using Wowhead Forever item drop chances. Run durations are not verified, so this is not an upgrades-per-hour estimate."
+        message = "Ranked by expected stat-weighted upgrade value per full dungeon run, using verified drop chances. Run durations are not verified, so this is not an upgrades-per-hour estimate."
     return {
         "status": status, "message": message, "recommended": ranked[0] if ranked else None,
         "rankings": ranked[:8], "dungeons_checked": len(catalog_dungeons),
-        "items_evaluated": len(item_data), "scoring": "estimated_class_stat_weights_and_drop_chances",
+        "items_evaluated": len(item_data), "scoring": "estimated_class_stat_weights",
         "catalog_source": CATALOG_SOURCE, "catalog_license": CATALOG_LICENSE,
         "item_data_sources": sorted({x.get("data_source", "Unknown") for x in item_data.values()}),
-        "drop_rates_available": bool(ranked), "run_times_available": False,
+        "drop_rates_available": bool(ranked) and all(x["drop_rate_coverage"] == 1 for x in ranked),
+        "run_times_available": False,
     }
