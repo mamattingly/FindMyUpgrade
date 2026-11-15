@@ -859,3 +859,11 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,su
  .planner-add{grid-template-columns:1fr}
  .planner-add button{width:100%}
 }
+
+.planner-stat-head,.planner-stat{grid-template-columns:minmax(0,1.2fr) repeat(3,minmax(58px,.8fr));gap:8px}
+.planner-stat-head span:not(:first-child),.planner-stat span:not(:first-child),.planner-stat strong{text-align:right;font-variant-numeric:tabular-nums}
+.planner-stat strong{font-size:11px}
+@media(max-width:600px){
+ .planner-stat-head,.planner-stat{grid-template-columns:minmax(0,1fr) repeat(3,minmax(48px,.75fr));gap:5px;font-size:10px}
+ .planner-stat-head{font-size:8px}
+}
