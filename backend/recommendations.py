@@ -147,6 +147,11 @@ def item_score(item: dict[str, Any], class_name: str) -> float:
     return round(score, 3)
 
 def item_is_usable(item: dict[str, Any], class_name: str, level: int) -> bool:
+    usable_by = item.get("usable_by")
+    if isinstance(usable_by, list) and usable_by:
+        allowed_classes = {str(x).casefold() for x in usable_by}
+        if class_name.casefold() not in allowed_classes:
+            return False
     try:
         required = int(item.get("required_level") or 0)
     except (TypeError, ValueError):
