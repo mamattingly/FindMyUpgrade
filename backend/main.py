@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from typing import Literal
 from backend.recommendations import DUNGEONS, recommend_dungeons
 
-app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.5.6")
+app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.5.7")
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "frontend" / "dist"
 REGION_LOCALES = {"us": "en_US", "eu": "en_GB", "kr": "ko_KR", "tw": "zh_TW"}
@@ -702,7 +702,7 @@ async def _thottbot_get(client, path):
         return None, None
 
 @app.get("/api/thottbot-diagnostics")
-async def thottbot_diagnostics(ids: str = "7713,7711,281290,19019"):
+async def thottbot_diagnostics(ids: str = "7713,7711,281290,19019,274291,274292,274155"):
     try:
         item_ids = [int(x.strip()) for x in ids.split(",") if x.strip()]
     except ValueError:
@@ -713,14 +713,27 @@ async def thottbot_diagnostics(ids: str = "7713,7711,281290,19019"):
         dungeon_status, dungeon_payload = await _thottbot_get(client, "dungeons")
         raw_dungeons = (dungeon_payload or {}).get("data") or []
         dungeon_samples = []
-        for dungeon in raw_dungeons[:8]:
-            if isinstance(dungeon, dict):
-                dungeon_samples.append({
-                    "keys": sorted(dungeon.keys()),
-                    "id": dungeon.get("id"),
-                    "name": dungeon.get("name"),
-                    "level_range": dungeon.get("levelRange") or dungeon.get("levels"),
-                    "zone": dungeon.get("zone"),
+        zone_samples = []
+        targets = {"gnomeregan", "razorfen kraul", "scarlet monastery", "blackfathom deeps"}
+        for dungeon in raw_dungeons if isinstance(raw_dungeons, list) else []:
+            if not isinstance(dungeon, dict):
+                continue
+            zone = dungeon.get("zone") or {}
+            instance = dungeon.get("instance") or {}
+            dungeon_samples.append({
+                "instance": instance, "zone": zone,
+                "boss_count": dungeon.get("bossCount"), "loot_count": dungeon.get("lootCount"),
+            })
+            if str(zone.get("name") or "").casefold() in targets and zone.get("id"):
+                status, zone_payload = await _thottbot_get(client, f"zones/{zone['id']}")
+                zone_data = (zone_payload or {}).get("data") or {}
+                zone_samples.append({
+                    "zone_id": zone.get("id"), "zone_name": zone.get("name"),
+                    "http_status": status,
+                    "response_keys": sorted((zone_payload or {}).keys()),
+                    "data_keys": sorted(zone_data.keys()) if isinstance(zone_data, dict) else [],
+                    "bosses": (zone_data.get("bosses") or [])[:5] if isinstance(zone_data, dict) else [],
+                    "loot_sample": (zone_data.get("loot") or zone_data.get("lootTable") or [])[:8] if isinstance(zone_data, dict) else [],
                 })
         item_samples = []
         for item_id in item_ids:
@@ -732,16 +745,18 @@ async def thottbot_diagnostics(ids: str = "7713,7711,281290,19019"):
                 "response_keys": sorted(data.keys()) if isinstance(data, dict) else [],
                 "item_keys": sorted(item.keys()) if isinstance(item, dict) else [],
                 "name": item.get("name") if isinstance(item, dict) else None,
-                "item_sample": {k: item.get(k) for k in ("itemLevel", "requiredLevel", "inventoryType", "itemClass", "itemSubclass", "stats", "damage", "speed") if isinstance(item, dict) and k in item},
-                "dropped_by": (data.get("droppedBy") or [])[:4] if isinstance(data, dict) else [],
+                "item_sample": {k: item.get(k) for k in ("itemLevel", "requiredLevel", "inventoryType", "itemClass", "itemSubclass", "stats", "damageMin", "damageMax", "speedMs") if isinstance(item, dict) and k in item},
+                "dropped_by": (data.get("droppedBy") or [])[:5] if isinstance(data, dict) else [],
             })
         return {
             "app_version": app.version,
             "dungeons_http_status": dungeon_status,
             "dungeon_count": len(raw_dungeons) if isinstance(raw_dungeons, list) else None,
             "dungeon_samples": dungeon_samples,
+            "zone_samples": zone_samples,
             "item_samples": item_samples,
         }
+
 
 @app.post("/api/analyze")
 async def analyze(payload: dict):
