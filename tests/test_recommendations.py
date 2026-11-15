@@ -313,7 +313,7 @@ def test_thewowdb_model_fields_extract_display_and_appearance_ids():
 def test_wago_db2_item_appearance_to_display_chain():
     from backend.main import _parse_wago_appearance_tables
 
-    modified = """ID,ItemID,ItemAppearanceModifierID,ItemAppearanceID,OrderIndex,TransmogSourceTypeEnum
+    modified = """\ufeffID,ItemID,ItemAppearanceModifierID,ItemAppearanceID,OrderIndex,TransmogSourceTypeEnum
 1,6512,0,65235,0,0
 2,1929,0,63657,0,0
 3,6394,0,65175,0,0
