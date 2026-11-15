@@ -57,7 +57,7 @@ export default function CharacterModel({modelData,armoryRenderUrl,name}){
    }
    setStatus("loading");setDetail("Loading the character's actual appearance and equipped gear…");
    try{
-    window.CONTENT_PATH=window.location.origin+"/api/modelviewer/live/";
+    window.CONTENT_PATH=window.location.origin+"/api/modelviewer/classic/";
     window.WOTLK_TO_RETAIL_DISPLAY_ID_API=undefined;
     const jqueryModule=await import("jquery");
     window.jQuery=window.$=jqueryModule.default;
@@ -73,7 +73,7 @@ export default function CharacterModel({modelData,armoryRenderUrl,name}){
      // wow-model-viewer reserves 21/22 for main-hand/off-hand display slots.
      items:modelData.items.map(([slot,displayId])=>[toViewerSlot(Number(slot)),Number(displayId)])
     };
-    viewer=await library.generateModels(1.45,"#"+id,character,"live");
+    viewer=await library.generateModels(1.45,"#"+id,character,"classic");
     if(disposed){viewer?.destroy?.();return;}
     const actorCount=viewer?.renderer?.actors?.length||0;
     if(actorCount<1){

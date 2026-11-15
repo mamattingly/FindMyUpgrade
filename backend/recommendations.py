@@ -182,17 +182,22 @@ def slot_key(value: str | None) -> str | None:
 def item_score(item: dict[str, Any], class_name: str, spec: str | None = None) -> float:
     weights = stat_weights(class_name, spec)
     stats = normalise_stats(item.get("stats"))
-    score = sum(value * weights.get(key, 0.0) for key, value in stats.items())
+    # Do not let armor or item level turn an otherwise irrelevant item into
+    # an upgrade. In particular, a healer's spell-damage-only drop must not
+    # become attractive merely because it has more armor or a higher item level.
+    relevant_stat_score = sum(value * weights.get(key, 0.0) for key, value in stats.items())
+    if relevant_stat_score <= 0:
+        return 0.0
+    score = relevant_stat_score
     try:
         score += float(item.get("armor") or 0) * weights.get("armor", 0.003)
     except (TypeError, ValueError):
         pass
-    if score > 0:
-        try:
-            # A small item-level tie-breaker only when the item has useful stats.
-            score += float(item.get("item_level") or 0) * 0.02
-        except (TypeError, ValueError):
-            pass
+    try:
+        # Item level is only a tie-breaker after a role-relevant stat exists.
+        score += float(item.get("item_level") or 0) * 0.02
+    except (TypeError, ValueError):
+        pass
     # Weapon DPS must not make healer or tank weapons outrank role gear.
     melee_damage_specs = {
         ("Druid", "Feral"), ("Shaman", "Enhancement"),
