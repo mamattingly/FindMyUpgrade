@@ -83,6 +83,8 @@ jobs:
           items = payload.get("item_samples") or []
           if not any(x.get("http_status") == 200 and x.get("name") and x.get("item_sample") for x in items):
               raise SystemExit("Thottbot Forever did not return a usable item record.")
+          if not any(x.get("dropped_by") for x in items):
+              raise SystemExit("Thottbot Forever item records did not include any observed drop sources.")
           zones = payload.get("zone_samples") or []
           if not any(x.get("http_status") == 200 for x in zones):
               raise SystemExit("Thottbot Forever did not return a dungeon zone loot table.")
