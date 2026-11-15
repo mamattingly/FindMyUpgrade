@@ -56,32 +56,53 @@ async def _get_page(client: httpx.AsyncClient, url: str):
     except httpx.RequestError as exc:
         raise HTTPException(502, "Blizzard's Armory could not be reached. Please try again.") from exc
 
-async def _blizzard_token(client: httpx.AsyncClient):
+async def _blizzard_token_diagnostic(client: httpx.AsyncClient):
     client_id, client_secret = os.getenv("BLIZZARD_CLIENT_ID"), os.getenv("BLIZZARD_CLIENT_SECRET")
     if not client_id or not client_secret:
-        return None
+        return None, {"credentials_present": False, "token_status": "missing_credentials"}
     if TOKEN_CACHE["access_token"] and TOKEN_CACHE["expires_at"] > time.time() + 60:
-        return TOKEN_CACHE["access_token"]
+        return TOKEN_CACHE["access_token"], {"credentials_present": True, "token_status": "cached_token"}
     try:
         response = await client.post("https://oauth.battle.net/token",
             data={"grant_type": "client_credentials"}, auth=(client_id, client_secret))
-        response.raise_for_status()
+        if response.status_code != 200:
+            return None, {"credentials_present": True, "token_status": "oauth_rejected", "oauth_http_status": response.status_code}
         data = response.json()
         TOKEN_CACHE["access_token"] = data["access_token"]
         TOKEN_CACHE["expires_at"] = time.time() + int(data.get("expires_in", 86400))
-        return TOKEN_CACHE["access_token"]
-    except (httpx.HTTPError, KeyError, ValueError):
-        return None
+        return TOKEN_CACHE["access_token"], {"credentials_present": True, "token_status": "token_acquired"}
+    except httpx.TimeoutException:
+        return None, {"credentials_present": True, "token_status": "oauth_timeout"}
+    except httpx.HTTPError:
+        return None, {"credentials_present": True, "token_status": "oauth_network_error"}
+    except (KeyError, ValueError):
+        return None, {"credentials_present": True, "token_status": "oauth_invalid_response"}
 
-async def _profile_api(client, token, region, slug, endpoint):
+async def _profile_api_diagnostic(client, token, region, slug, endpoint):
     url = f"https://{region}.api.blizzard.com/profile/wow/character/{quote(slug, safe='-')}/{endpoint}"
     try:
         response = await client.get(url,
             params={"namespace": f"profile-forever-{region}", "locale": REGION_LOCALES[region]},
             headers={"Authorization": f"Bearer {token}"})
-        return response.json() if response.status_code == 200 else None
-    except (httpx.HTTPError, ValueError):
-        return None
+        if response.status_code == 200:
+            try:
+                payload = response.json()
+                return {"http_status": 200, "json": isinstance(payload, dict), "keys": sorted(payload.keys()) if isinstance(payload, dict) else []}, payload
+            except ValueError:
+                return {"http_status": 200, "json": False, "keys": []}, None
+        return {"http_status": response.status_code, "json": False, "keys": []}, None
+    except httpx.TimeoutException:
+        return {"http_status": None, "error": "timeout"}, None
+    except httpx.HTTPError:
+        return {"http_status": None, "error": "network_error"}, None
+
+async def _blizzard_token(client: httpx.AsyncClient):
+    token, _ = await _blizzard_token_diagnostic(client)
+    return token
+
+async def _profile_api(client, token, region, slug, endpoint):
+    _, payload = await _profile_api_diagnostic(client, token, region, slug, endpoint)
+    return payload
 
 def _gear_from_api(data):
     result = []
@@ -161,6 +182,34 @@ async def scan(req: ScanRequest):
             "equipped_gear": gear, "professions": professions, "api_status": api_status,
             "scan_status": "profile_found" if char_class and character.get("level") else "profile_found_partial",
             "message": "Character verified. Gear, specialization and profession skills were retrieved from Blizzard's profile API." if api_status == "connected" else "Character verified. Add Blizzard API credentials in Render to enable automatic gear, specialization and profession retrieval. You can track profession skill manually in this build."}
+
+@app.get("/api/diagnostics")
+async def diagnostics(region: Literal["us", "eu", "kr", "tw"] = "us", name: str = "Faith Heal"):
+    parts = " ".join(name.strip().split()).split()
+    if len(parts) != 2:
+        raise HTTPException(400, "Enter the character's first name and surname.")
+    slug = "-".join(parts).casefold()
+    async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
+        token, auth = await _blizzard_token_diagnostic(client)
+        result = {"app_version": app.version, **auth, "region": region.upper(), "character_slug": slug}
+        if not token:
+            return result
+        endpoints = ("equipment", "specializations", "professions")
+        checks = await asyncio.gather(*[
+            _profile_api_diagnostic(client, token, region, slug, endpoint)
+            for endpoint in endpoints
+        ])
+        for endpoint, (status, payload) in zip(endpoints, checks):
+            result[endpoint] = status
+            if endpoint == "equipment" and isinstance(payload, dict):
+                items = payload.get("equipped_items")
+                result["equipment_item_count"] = len(items) if isinstance(items, list) else None
+            elif endpoint == "specializations" and isinstance(payload, dict):
+                specs = payload.get("specializations")
+                result["specialization_count"] = len(specs) if isinstance(specs, list) else None
+            elif endpoint == "professions" and isinstance(payload, dict):
+                result["profession_groups"] = [k for k in ("primaries", "secondaries") if isinstance(payload.get(k), list)]
+        return result
 
 @app.post("/api/analyze")
 async def analyze(payload: dict):
