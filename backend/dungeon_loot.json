@@ -817,6 +817,244 @@
       "source_file": "excavation%20site%20-%20wetlands.lua",
       "source_url": "https://github.com/ATTWoWAddon/AllTheThings/blob/master/.contrib/.db/forever/dungeons%20%26%20raids/excavation%20site%20-%20wetlands.lua",
       "bosses": []
+    },
+    {
+      "name": "The Drowned City",
+      "min_level": 35,
+      "max_level": 40,
+      "faction": null,
+      "source_file": "the%20drowned%20city.lua",
+      "source_url": "https://github.com/ATTWoWAddon/AllTheThings/blob/master/.contrib/.db/forever/dungeons%20%26%20raids/the%20drowned%20city.lua",
+      "bosses": [
+        {
+          "npc_id": 264172,
+          "boss": "Umbra",
+          "items": [
+            286662,
+            286658
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Krol'dok Stronghold",
+      "min_level": 40,
+      "max_level": 45,
+      "faction": null,
+      "source_file": "krol'dok%20stronghold.lua",
+      "source_url": "https://github.com/ATTWoWAddon/AllTheThings/blob/master/.contrib/.db/forever/dungeons%20%26%20raids/krol'dok%20stronghold.lua",
+      "bosses": [
+        {
+          "npc_id": 264773,
+          "boss": "Bossman Toof",
+          "items": [
+            286428,
+            286429,
+            286430
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Uldaman",
+      "min_level": 42,
+      "max_level": 52,
+      "faction": null,
+      "source_file": "uldaman.lua",
+      "source_url": "https://github.com/ATTWoWAddon/AllTheThings/blob/master/.contrib/.db/forever/dungeons%20%26%20raids/uldaman.lua",
+      "bosses": [
+        {
+          "npc_id": 7057,
+          "boss": "Digmaster Shovelphlange",
+          "items": [
+            9378,
+            9375,
+            9382
+          ]
+        },
+        {
+          "npc_id": 6906,
+          "boss": "Baelog",
+          "items": [
+            9399,
+            9401,
+            9400
+          ]
+        },
+        {
+          "npc_id": 6907,
+          "boss": "Eric \"The Swift\"",
+          "items": [
+            9394,
+            9398,
+            2459
+          ]
+        },
+        {
+          "npc_id": 6908,
+          "boss": "Olaf",
+          "items": [
+            9404,
+            9403,
+            1177
+          ]
+        },
+        {
+          "npc_id": 6912,
+          "boss": "Remains of a Paladin",
+          "items": [
+            7886
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Zul'Farrak",
+      "min_level": 44,
+      "max_level": 54,
+      "faction": null,
+      "source_file": "zul'farrak.lua",
+      "source_url": "https://github.com/ATTWoWAddon/AllTheThings/blob/master/.contrib/.db/forever/dungeons%20%26%20raids/zul'farrak.lua",
+      "bosses": [
+        {
+          "npc_id": 10080,
+          "boss": "Sandarr Dunereaver",
+          "items": [
+            9512,
+            9511,
+            6440,
+            9480,
+            9483,
+            5616,
+            862,
+            9484,
+            9481,
+            2040,
+            9482,
+            274659,
+            274660
+          ]
+        },
+        {
+          "npc_id": 10082,
+          "boss": "Zerillis",
+          "items": [
+            12470,
+            274658
+          ]
+        },
+        {
+          "npc_id": 10081,
+          "boss": "Dustwraith",
+          "items": [
+            12471
+          ]
+        },
+        {
+          "npc_id": 7796,
+          "boss": "Nekrum Gutchewer",
+          "items": [
+            9471,
+            274643,
+            274644,
+            274645
+          ]
+        },
+        {
+          "npc_id": 7604,
+          "boss": "Sergeant Bly",
+          "items": [
+            8548,
+            274646,
+            274647,
+            274648
+          ]
+        },
+        {
+          "npc_id": 7797,
+          "boss": "Ruuzlu",
+          "items": [
+            274654,
+            274655
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Maraudon",
+      "min_level": 45,
+      "max_level": 57,
+      "faction": null,
+      "source_file": "maraudon.lua",
+      "source_url": "https://github.com/ATTWoWAddon/AllTheThings/blob/master/.contrib/.db/forever/dungeons%20%26%20raids/maraudon.lua",
+      "bosses": [
+        {
+          "npc_id": 12237,
+          "boss": "Meshlok the Harvester",
+          "items": [
+            17741,
+            17742,
+            17767
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Alcaz Prison",
+      "min_level": 48,
+      "max_level": 53,
+      "faction": null,
+      "source_file": "alcaz%20prison.lua",
+      "source_url": "https://github.com/ATTWoWAddon/AllTheThings/blob/master/.contrib/.db/forever/dungeons%20%26%20raids/alcaz%20prison.lua",
+      "bosses": []
+    },
+    {
+      "name": "Sunken Temple",
+      "min_level": 50,
+      "max_level": 60,
+      "faction": null,
+      "source_file": "the%20temple%20of%20atal'hakkar.lua",
+      "source_url": "https://github.com/ATTWoWAddon/AllTheThings/blob/master/.contrib/.db/forever/dungeons%20%26%20raids/the%20temple%20of%20atal'hakkar.lua",
+      "bosses": [
+        {
+          "npc_id": 5708,
+          "boss": "Spawn of Hakkar",
+          "items": [
+            10801,
+            10802
+          ]
+        },
+        {
+          "npc_id": 8580,
+          "boss": "Atal'alarion",
+          "items": [
+            22444,
+            10799,
+            10800,
+            10798,
+            252871
+          ]
+        },
+        {
+          "npc_id": 5711,
+          "boss": "Ogom the Wretched",
+          "items": [
+            10803,
+            10805,
+            10804
+          ]
+        },
+        {
+          "npc_id": 5710,
+          "boss": "Jammal'an the Prophet",
+          "items": [
+            6212,
+            10806,
+            10808,
+            10807
+          ]
+        }
+      ]
     }
   ]
 }
