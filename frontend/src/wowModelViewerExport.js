@@ -47,8 +47,11 @@ function wmvAppearances(modelData) {
     ? modelData.resolved_appearances
     : [];
   return appearances.map((appearance) => {
-    const internalSlot = Number.isInteger(Number(appearance.internal_slot_id))
-      ? Number(appearance.internal_slot_id)
+    const rawInternalSlot = appearance.internal_slot_id;
+    const hasInternalSlot = rawInternalSlot !== null &&
+      rawInternalSlot !== undefined && rawInternalSlot !== "";
+    const internalSlot = hasInternalSlot && Number.isInteger(Number(rawInternalSlot))
+      ? Number(rawInternalSlot)
       : Number(appearance.slot) - 1;
     const viewerSlot = WMV_SLOT_BY_INTERNAL_SLOT[internalSlot];
     return {
@@ -60,17 +63,34 @@ function wmvAppearances(modelData) {
   }).filter((item) => item.viewerSlot !== undefined && item.itemId && item.displayId);
 }
 
+function expectedWmvAppearanceCount(modelData) {
+  const appearances = Array.isArray(modelData?.resolved_appearances)
+    ? modelData.resolved_appearances
+    : [];
+  return appearances.filter((appearance) => {
+    const rawInternalSlot = appearance.internal_slot_id;
+    const hasInternalSlot = rawInternalSlot !== null &&
+      rawInternalSlot !== undefined && rawInternalSlot !== "";
+    const internalSlot = hasInternalSlot && Number.isInteger(Number(rawInternalSlot))
+      ? Number(rawInternalSlot)
+      : Number(appearance.slot) - 1;
+    return Object.hasOwn(WMV_SLOT_BY_INTERNAL_SLOT, internalSlot);
+  }).length;
+}
+
 export function canExportWmvCharacter(modelData) {
   if (!modelData || !positiveInteger(modelData.race)) return false;
   const sex = modelData.wmv_sex;
   if (![0, 1].includes(Number(sex))) return false;
   if (!MODEL_DIRECTORY_BY_RACE[Number(modelData.race)]) return false;
   const customizations = Array.isArray(modelData.customizations) ? modelData.customizations : [];
-  if (customizations.some((entry) =>
+  if (!customizations.length || customizations.some((entry) =>
     !positiveInteger(entry.option_id) || !positiveInteger(entry.choice_id)
   )) return false;
   if (Number(modelData.missing_display_ids?.length || 0) > 0) return false;
-  return wmvAppearances(modelData).length > 0;
+  const appearances = wmvAppearances(modelData);
+  const expectedCount = expectedWmvAppearanceCount(modelData);
+  return expectedCount > 0 && appearances.length === expectedCount;
 }
 
 export function buildWmvCharacterXml(modelData, characterClass = "") {
