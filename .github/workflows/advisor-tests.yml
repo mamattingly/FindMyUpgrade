@@ -47,7 +47,7 @@ jobs:
       - name: Wait for this version to reach Render
         env:
           APP_URL: https://wow-forever-dungeon-advisor-1zlg.onrender.com
-          EXPECTED_VERSION: "0.7.0"
+          EXPECTED_VERSION: "0.7.1"
         run: |
           python - <<'PY'
           import json, os, time, urllib.request
@@ -172,9 +172,17 @@ jobs:
               raise SystemExit("Expected Scarlet Monastery Library's Illusionary Rod upgrade was not recognized.")
           if not analysis.get("recommended") or not analysis.get("rankings"):
               raise SystemExit("Live scan did not produce a best-dungeon recommendation.")
-          if not any(x.get("icon_url") for x in gear):
-              raise SystemExit("Live character scan did not return any equipped item icons.")
-          if not any(u.get("icon_url") for dungeon in (analysis.get("rankings") or [])[:1]
+          import urllib.parse
+          item_ids = sorted({str(x.get("id")) for x in gear if x.get("id")} |
+                            {str(u.get("item_id")) for dungeon in (analysis.get("rankings") or [])[:1]
+                             for u in (dungeon.get("upgrades") or []) if u.get("item_id")})
+          icon_url = os.environ["APP_URL"].rstrip("/") + "/api/item-icons?" + urllib.parse.urlencode({"ids": ",".join(item_ids)})
+          with urllib.request.urlopen(icon_url, timeout=90) as response:
+              icon_payload = json.load(response)
+          icons = icon_payload.get("icons") or {}
+          if not any(str(x.get("id")) in icons for x in gear):
+              raise SystemExit("Deferred item artwork did not return an equipped item icon.")
+          if not any(str(u.get("item_id")) in icons for dungeon in (analysis.get("rankings") or [])[:1]
                      for u in (dungeon.get("upgrades") or [])):
-              raise SystemExit("Live dungeon recommendation did not return item icons.")
+              raise SystemExit("Deferred item artwork did not return a recommended item icon.")
           PY

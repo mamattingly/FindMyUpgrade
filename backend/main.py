@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from typing import Literal
 from backend.recommendations import DUNGEONS, recommend_dungeons
 
-app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.7.0")
+app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.7.1")
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "frontend" / "dist"
 REGION_LOCALES = {"us": "en_US", "eu": "en_GB", "kr": "ko_KR", "tw": "zh_TW"}
@@ -393,34 +393,11 @@ async def _wowhead_item_icon(client, item_id):
         icon_url = data.get("iconUrl") if isinstance(data, dict) else None
         if not icon_url and isinstance(icon, str) and re.fullmatch(r"[a-z0-9_]+", icon, re.I):
             icon_url = f"https://wow.zamimg.com/images/wow/icons/large/{icon}.jpg"
-        ITEM_ICON_CACHE[item_id] = icon_url
+        if icon_url:
+            ITEM_ICON_CACHE[item_id] = icon_url
         return icon_url
     except (httpx.HTTPError, ValueError, TypeError):
-        ITEM_ICON_CACHE[item_id] = None
         return None
-
-
-async def _attach_item_icons(client, gear, recommendations):
-    gear_ids = [int(item["id"]) for item in gear if item.get("id")]
-    recommendation_ids = [
-        int(item["item_id"])
-        for dungeon in (recommendations.get("rankings") or [])[:1]
-        for item in (dungeon.get("upgrades") or [])
-        if item.get("item_id")
-    ]
-    ids = list(dict.fromkeys(gear_ids + recommendation_ids))
-    semaphore = asyncio.Semaphore(8)
-    async def load(item_id):
-        async with semaphore:
-            return item_id, await _wowhead_item_icon(client, item_id)
-    icons = dict(await asyncio.gather(*(load(item_id) for item_id in ids)))
-    for item in gear:
-        if item.get("id"):
-            item["icon_url"] = icons.get(int(item["id"]))
-    for dungeon in (recommendations.get("rankings") or [])[:1]:
-        for item in (dungeon.get("upgrades") or []):
-            if item.get("item_id"):
-                item["icon_url"] = icons.get(int(item["item_id"]))
 
 
 async def _thottbot_item_data(client, item_id):
@@ -709,8 +686,6 @@ async def scan(req: ScanRequest):
                     "level": character.get("level"), "class": char_class, "spec": spec,
                     "faction": faction.title() if isinstance(faction, str) else "Unknown",
                 }, gear)
-            if gear:
-                await _attach_item_icons(client, gear, dungeon_recommendations)
         soup = BeautifulSoup(profile_response.text, "html.parser")
         return {"source_url": str(profile_response.url),
             "page_title": soup.title.get_text(" ", strip=True) if soup.title else "WoW Forever Armory",
@@ -722,6 +697,25 @@ async def scan(req: ScanRequest):
             "dungeon_recommendations": dungeon_recommendations,
             "scan_status": "profile_found" if char_class and character.get("level") else "profile_found_partial",
             "message": "Character verified. Gear, specialization and profession skills were retrieved from Blizzard's profile API." if api_status == "connected" else "Character verified, but automatic gear and dungeon analysis could not complete. Check the API connection status."}
+
+@app.get("/api/item-icons")
+async def item_icons(ids: str):
+    """Load item artwork separately so image latency never blocks character analysis."""
+    try:
+        item_ids = list(dict.fromkeys(int(x.strip()) for x in ids.split(",") if x.strip()))
+    except ValueError:
+        raise HTTPException(400, "Item IDs must be comma-separated integers.")
+    if not item_ids or len(item_ids) > 50:
+        raise HTTPException(400, "Supply between 1 and 50 item IDs.")
+    semaphore = asyncio.Semaphore(10)
+    # A shared client reuses connections across the icon batch.
+    async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
+        async def fetch_icon(item_id):
+            async with semaphore:
+                return str(item_id), await _wowhead_item_icon(client, item_id)
+        results = await asyncio.gather(*(fetch_icon(item_id) for item_id in item_ids))
+    return {"icons": {item_id: url for item_id, url in results if url}}
+
 
 @app.get("/api/diagnostics")
 async def diagnostics(region: Literal["us", "eu", "kr", "tw"] = "us", name: str = "Faith Heal"):

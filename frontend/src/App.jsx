@@ -31,6 +31,30 @@ export default function App(){
    const d=await r.json();if(!r.ok)throw new Error(d.detail||"Character lookup failed.");
    const profile={...d.character,id:crypto.randomUUID(),url:d.source_url,status:d.scan_status,scannedAt:new Date().toISOString(),gear:d.equipped_gear||[],professions:d.professions||[],apiStatus:d.api_status,recommendations:d.dungeon_recommendations||null};
    setProfiles(old=>[profile,...old.filter(p=>!(p.region===profile.region&&p.name?.toLowerCase()===profile.name.toLowerCase()))]);
+   const iconIds=[...profile.gear.map(g=>g.id),...(profile.recommendations?.rankings?.[0]?.upgrades||[]).map(u=>u.item_id)].filter(Boolean);
+   if(iconIds.length){
+    fetch("/api/item-icons?ids="+encodeURIComponent([...new Set(iconIds)].join(",")))
+     .then(r=>r.ok?r.json():null).then(payload=>{
+      const icons=payload?.icons||{};
+      setProfiles(old=>old.map(p=>{
+       if(p.id!==profile.id)return p;
+       const withIcon=item=>({...item,icon_url:icons[String(item.item_id)]||item.icon_url});
+       const recommendations=p.recommendations?{
+        ...p.recommendations,
+        recommended:p.recommendations.recommended?{
+         ...p.recommendations.recommended,
+         best_upgrade:p.recommendations.recommended.best_upgrade?withIcon(p.recommendations.recommended.best_upgrade):null,
+         upgrades:(p.recommendations.recommended.upgrades||[]).map(withIcon)
+        }:null,
+        rankings:(p.recommendations.rankings||[]).map(d=>({
+         ...d,best_upgrade:d.best_upgrade?withIcon(d.best_upgrade):null,
+         upgrades:(d.upgrades||[]).map(withIcon)
+        }))
+       }:p.recommendations;
+       return {...p,gear:p.gear.map(g=>({...g,icon_url:icons[String(g.id)]||g.icon_url})),recommendations};
+      }));
+     }).catch(()=>{});
+   }
    setActive(0);setName("");setMessage("Character synced successfully.");
    if(profile.professions.length){const seed={};profile.professions.forEach(p=>seed[p.name]=Number(p.skill)||0);const k=profile.region+":"+profile.name.toLowerCase();setSkills(old=>({...old,[k]:{...seed,...(old[k]||{})}}))}
   }catch(e){setMessage(e.message||"Could not find that character.")}finally{setBusy(false)}
