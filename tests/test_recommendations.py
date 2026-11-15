@@ -1,5 +1,5 @@
 from backend import recommendations as rec
-from backend.main import _parse_wowhead_item_page
+from backend.main import _parse_wowhead_item_page, _spec_from_api
 
 
 def test_normalise_stats_from_blizzard_shape():
@@ -90,7 +90,7 @@ def test_two_hander_must_replace_both_mainhand_and_offhand(monkeypatch):
         "source_url": "https://example.invalid/test-crypt",
         "bosses": [{"boss": "Test Boss", "items": [2001]}],
     }])
-    character = {"level": 34, "class": "Priest", "faction": "Alliance"}
+    character = {"level": 34, "class": "Priest", "spec": "Discipline", "faction": "Alliance"}
     equipped = [
         {"slot": "Main Hand", "stats": [{"name": "Intellect", "value": 10}]},
         {"slot": "Off Hand", "stats": [{"name": "Intellect", "value": 10}]},
@@ -159,8 +159,72 @@ def test_profession_only_dungeons_remain_available_for_run_logging(monkeypatch):
          "faction": None, "source_url": "https://example.invalid/dungeon", "bosses": []}
         for i in range(10)
     ])
-    character = {"level": 34, "class": "Priest", "faction": "Alliance"}
+    character = {"level": 34, "class": "Priest", "spec": "Discipline", "faction": "Alliance"}
     result = rec.recommend_dungeons(character, [], {9999: {"name": "unused"}})
     assert result["status"] == "no_upgrades_found"
     assert len(result["rankings"]) == 10
     assert all(d["upgrade_slots"] == 0 and d["best_upgrade"] is None for d in result["rankings"])
+
+
+def test_healer_specs_do_not_get_physical_dps_or_weapon_dps_bonus():
+    physical = {"stats": [
+        {"name": "Strength", "value": 100},
+        {"name": "Agility", "value": 100},
+        {"name": "Attack Power", "value": 100},
+    ], "weapon_dps": 80}
+    healing = {"stats": [
+        {"name": "Intellect", "value": 15},
+        {"name": "Spell Healing", "value": 25},
+        {"name": "Spirit", "value": 12},
+        {"name": "Mana per 5 sec", "value": 5},
+    ], "weapon_dps": 0}
+    for class_name, spec in [
+        ("Priest", "Discipline"), ("Priest", "Holy"),
+        ("Druid", "Restoration"), ("Shaman", "Restoration"),
+        ("Paladin", "Holy"),
+    ]:
+        assert rec.item_score(healing, class_name, spec) > rec.item_score(physical, class_name, spec)
+        shown = rec.relevant_item_stats(physical, class_name, spec)
+        assert not any("Strength" in stat or "Agility" in stat or "Attack Power" in stat for stat in shown)
+
+
+def test_tank_and_healer_weapon_dps_does_not_inflate_score():
+    weapon = {"stats": [{"name": "Intellect", "value": 10}], "weapon_dps": 100}
+    without_dps = {"stats": [{"name": "Intellect", "value": 10}], "weapon_dps": 0}
+    for class_name, spec in [
+        ("Priest", "Discipline"), ("Shaman", "Restoration"),
+        ("Paladin", "Protection"), ("Warrior", "Protection"),
+    ]:
+        assert rec.item_score(weapon, class_name, spec) == rec.item_score(without_dps, class_name, spec)
+
+
+def test_unknown_specialization_does_not_guess_dps_recommendations():
+    result = rec.recommend_dungeons(
+        {"level": 34, "class": "Priest", "spec": "Unknown", "faction": "Alliance"},
+        [], {123: {"name": "Test item"}},
+    )
+    assert result["status"] == "specialization_unavailable"
+    assert result["rankings"] == []
+    assert result["recommended"] is None
+
+
+def test_spec_parser_requires_active_spec_not_first_list_entry():
+    payload = {"specialization_groups": [{
+        "is_active": True,
+        "specializations": [
+            {"specialization": {"name": "Shadow"}},
+            {"specialization": {"name": "Discipline"}, "is_active": True},
+        ],
+    }]}
+    assert _spec_from_api(payload) == "Discipline"
+
+
+def test_spec_parser_does_not_guess_when_active_group_has_multiple_unmarked_specs():
+    payload = {"specialization_groups": [{
+        "is_active": True,
+        "specializations": [
+            {"specialization": {"name": "Shadow"}},
+            {"specialization": {"name": "Discipline"}},
+        ],
+    }]}
+    assert _spec_from_api(payload) == "Unknown"

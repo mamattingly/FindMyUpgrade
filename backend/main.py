@@ -140,47 +140,42 @@ def _gear_from_api(data):
     return result
 
 def _spec_from_api(data):
+    """Return only the explicitly active specialization; never guess from list order."""
     if not isinstance(data, dict):
         return "Unknown"
-
-    # Forever's character endpoint returns specialization_groups rather
-    # than the older/retail-style top-level specializations array.
     groups = data.get("specialization_groups") or []
     for group in groups:
-        if not isinstance(group, dict):
+        if not isinstance(group, dict) or not (group.get("is_active") or group.get("active")):
             continue
-        if group.get("is_active") or group.get("active"):
-            specs = group.get("specializations") or []
-            for spec in specs:
-                if not isinstance(spec, dict):
-                    continue
-                details = spec.get("specialization") or spec
-                name = details.get("name") if isinstance(details, dict) else None
-                if name:
-                    return name
-    # Fallback for API variants where the active marker is on the spec.
+        specs = group.get("specializations") or []
+        for entry in specs:
+            if not isinstance(entry, dict) or not (entry.get("is_active") or entry.get("active")):
+                continue
+            details = entry.get("specialization") or entry
+            if isinstance(details, dict) and details.get("name"):
+                return details["name"]
+        # An active group with one spec is unambiguous; never assume the first
+        # spec when the group contains multiple choices but no active marker.
+        if len(specs) == 1 and isinstance(specs[0], dict):
+            details = specs[0].get("specialization") or specs[0]
+            if isinstance(details, dict) and details.get("name"):
+                return details["name"]
     for group in groups:
         if not isinstance(group, dict):
             continue
-        for spec in group.get("specializations") or []:
-            if not isinstance(spec, dict):
+        for entry in group.get("specializations") or []:
+            if not isinstance(entry, dict) or not (entry.get("is_active") or entry.get("active")):
                 continue
-            if spec.get("is_active") or spec.get("active"):
-                details = spec.get("specialization") or spec
-                if isinstance(details, dict) and details.get("name"):
-                    return details["name"]
-
-    # Preserve compatibility with responses using a flat specialization list.
-    for spec in data.get("specializations") or []:
-        if not isinstance(spec, dict):
-            continue
-        if spec.get("is_active") or spec.get("active"):
-            details = spec.get("specialization") or spec
+            details = entry.get("specialization") or entry
             if isinstance(details, dict) and details.get("name"):
                 return details["name"]
+    for entry in data.get("specializations") or []:
+        if not isinstance(entry, dict) or not (entry.get("is_active") or entry.get("active")):
+            continue
+        details = entry.get("specialization") or entry
+        if isinstance(details, dict) and details.get("name"):
+            return details["name"]
     return "Unknown"
-
-
 def _api_name(value):
     return value.get("name") if isinstance(value, dict) else value
 
