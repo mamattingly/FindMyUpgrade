@@ -578,31 +578,15 @@ async def _build_character_model(client, token, region, appearance, race_name=No
             "item_appearance_modifier_id": entry.get("item_appearance_modifier_id"),
         })
 
-    async def resolve_appearance(item):
-        data = await _blizzard_static_json(
-            client, token, region, f"data/wow/item/{item['item_id']}",
-            required_field="appearances")
-        appearances = (data or {}).get("appearances") or []
-        if not appearances or not isinstance(appearances[0], dict):
-            return None
-        appearance_id = appearances[0].get("id")
-        if not appearance_id:
-            return None
-        return int(appearance_id)
+    # Do not resolve Forever item IDs through Blizzard's Retail static item
+    # namespace. Those records can return Retail display IDs which do not
+    # exist in the Classic model-viewer data pack. Resolve every appearance
+    # against Forever-specific item records first instead.
+    display_ids = [None] * len(visible)
+    display_sources = [None] * len(visible)
 
-    appearance_ids = await asyncio.gather(*(resolve_appearance(item) for item in visible))
-
-    display_ids = await asyncio.gather(*(
-        _blizzard_item_appearance_display_id(client, token, region, app_id)
-        for app_id in appearance_ids
-    ))
-    display_sources = [
-        "blizzard_item_appearance" if display_id else None
-        for display_id in display_ids
-    ]
-
-    # Forever item pages can expose an ItemAppearance row even when the
-    # Blizzard Item API omits the item's appearances array.
+    # Forever item pages can expose an ItemAppearance row even when an item
+    # record omits a direct display ID. Never substitute a Retail-only ID.
     fallback_semaphore = asyncio.Semaphore(5)
 
     async def fallback_display_data(item_id):
@@ -613,39 +597,25 @@ async def _build_character_model(client, token, region, appearance, race_name=No
             icy_task = _icyveins_item_appearance_id(client, item_id)
             thewowdb_fields, icy_appearance_id = await asyncio.gather(thewowdb_task, icy_task)
 
-            wago_fields = await _wago_item_display_data(client, item_id)
-            if wago_fields:
-                MODEL_APPEARANCE_DIAGNOSTICS.setdefault(item_id, []).append({
-                    "source": "wago_db2",
-                    "build": WAGO_DB2_CACHE.get("build"),
-                    "appearance_id": wago_fields.get("appearance_id"),
-                    "display_id": wago_fields.get("display_id"),
-                })
-                return wago_fields["display_id"], "wago_db2_itemappearance_chain"
-
+            # TheWoWDB is keyed to the Forever item database. Its explicit
+            # display_id is the only direct-ID source trusted for this client.
             if thewowdb_fields.get("display_id"):
-                return thewowdb_fields["display_id"], "thewowdb_display_id"
+                return thewowdb_fields["display_id"], "thewowdb_forever_display_id"
 
-            appearance_id = (
-                thewowdb_fields.get("appearance_id")
-                or icy_appearance_id
-            )
-            if appearance_id:
-                display_id = await _blizzard_item_appearance_display_id(
-                    client, token, region, appearance_id)
-                MODEL_APPEARANCE_DIAGNOSTICS.setdefault(item_id, []).append({
-                    "source": "blizzard_item_appearance_from_fallback",
-                    "appearance_id": appearance_id,
-                    "display_id": display_id,
-                })
-                if display_id:
-                    return display_id, "blizzard_item_appearance_from_icyveins_or_thewowdb"
-
-            # Last resort only: Wowhead item pages are frequently bot-blocked
-            # from server runtimes, but retain the fallback for when accessible.
+            # Wowhead's Forever item page is the next source. Icy Veins and
+            # Blizzard appearance IDs are intentionally not converted through
+            # Retail DB2: that was producing display IDs absent from Classic.
             display_id = await _wowhead_page_display_id(client, item_id)
             if display_id:
-                return display_id, "wowhead_modelviewer"
+                return display_id, "wowhead_forever_modelviewer"
+
+            MODEL_APPEARANCE_DIAGNOSTICS.setdefault(item_id, []).append({
+                "source": "forever_appearance_unresolved",
+                "icy_veins_appearance_id": icy_appearance_id,
+                "thewowdb_appearance_id": thewowdb_fields.get("appearance_id"),
+                "wago_db2_ignored": True,
+                "reason": "No verified Forever-compatible display ID was available.",
+            })
             return None, None
 
     fallback_indexes = [i for i, display_id in enumerate(display_ids) if not display_id]
@@ -719,7 +689,7 @@ async def _build_character_model(client, token, region, appearance, race_name=No
             ) for item_id in set(missing) | {x["item_id"] for x in resolved_appearances
                                              if x["source"] != "blizzard_item_appearance"}
         },
-        "source": "Blizzard Forever appearance + Wago DB2, TheWoWDB, Icy Veins and Wowhead item display metadata",
+        "source": "Blizzard Forever character appearance + Forever-specific item display metadata",
         "wago_db2": {
             "build": WAGO_DB2_CACHE.get("build"),
             "diagnostics": WAGO_DB2_CACHE.get("diagnostics", []),
