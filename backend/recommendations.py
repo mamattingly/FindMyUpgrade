@@ -52,7 +52,7 @@ STAT_WEIGHTS = {
 DEFAULT_WEIGHTS = {"intellect": 0.8, "strength": 0.7, "agility": 0.7,
                    "stamina": 0.4, "spirit": 0.4, "attack_power": 0.6,
                    "spell_damage": 0.6, "spell_healing": 0.6, "mp5": 0.4,
-                   "hit": 0.45, "crit": 0.4, "spell_crit": 0.4,
+                   "hit": 0.45, "expertise": 0.4, "crit": 0.4, "spell_crit": 0.4,
                    "defense": 0.3, "dodge": 0.3, "parry": 0.3, "block": 0.3}
 
 # Classic-era stat weights are deliberately broad leveling estimates. Spec
@@ -70,7 +70,7 @@ SPEC_WEIGHT_OVERRIDES = {
     ("Paladin", "Holy"): {"spell_healing": 1.25, "spell_damage": 0.0, "intellect": 1.1, "spirit": 0.8, "mp5": 1.0},
     ("Paladin", "Protection"): {"spell_healing": 0.0, "spell_damage": 0.0, "strength": 0.85, "defense": 0.8, "stamina": 0.8, "dodge": 0.7, "parry": 0.7, "block": 0.7},
     ("Paladin", "Retribution"): {"spell_healing": 0.0, "spell_damage": 0.0, "strength": 1.15, "attack_power": 0.9, "crit": 0.8, "hit": 0.75},
-    ("Warrior", "Protection"): {"strength": 0.9, "defense": 0.9, "stamina": 0.9, "dodge": 0.75, "parry": 0.75, "block": 0.75},
+    ("Warrior", "Protection"): {"strength": 0.9, "defense": 0.9, "stamina": 0.9, "dodge": 0.75, "parry": 0.75, "block": 0.75, "spell_damage": 0.0, "spell_healing": 0.0},
     ("Warrior", "Arms"): {"strength": 1.1, "attack_power": 0.9, "crit": 0.8, "hit": 0.75},
     ("Warrior", "Fury"): {"strength": 1.1, "attack_power": 0.95, "crit": 0.85, "hit": 0.8},
     ("Hunter", "Beast Mastery"): {"agility": 1.1, "attack_power": 0.95, "crit": 0.8, "hit": 0.8},
@@ -143,6 +143,7 @@ def _stat_key(name: str) -> str | None:
     if "agility" in n: return "agility"
     if "strength" in n: return "strength"
     if "hit" in n: return "hit"
+    if "expertise" in n: return "expertise"
     if "defense" in n: return "defense"
     if "critical" in n or n == "crit": return "crit"
     if "armor" in n: return "armor"
