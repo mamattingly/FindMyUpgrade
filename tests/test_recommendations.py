@@ -18,6 +18,19 @@ def test_priest_stat_score_prefers_caster_stats():
     assert rec.item_score(caster, "Priest") > rec.item_score(melee, "Priest")
 
 
+def test_healer_rejects_spell_damage_only_item_even_with_intellect():
+    damage_only = {"item_level": 60, "stats": [
+        {"name": "Intellect", "value": 15},
+        {"name": "Spell Damage", "value": 22},
+    ]}
+    healing = {"item_level": 55, "stats": [
+        {"name": "Intellect", "value": 10},
+        {"name": "Spell Healing", "value": 18},
+    ]}
+    assert rec.item_score(damage_only, "Shaman", "Restoration") == 0
+    assert rec.item_score(healing, "Shaman", "Restoration") > 0
+
+
 def test_priest_can_equip_cloth_but_not_leather_chest():
     base = {"inventory_type": "Chest", "item_class": "Armor", "required_level": 30}
     assert rec.item_is_usable({**base, "item_subclass": "Cloth"}, "Priest", 34)
