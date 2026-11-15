@@ -352,9 +352,12 @@ async def _build_character_model(client, token, region, appearance, race_name=No
         async with fallback_semaphore:
             return await _wowhead_page_display_id(client, item_id)
 
-    for index, item in enumerate(visible):
-        if not display_ids[index]:
-            display_ids[index] = await fallback_display_id(item["item_id"])
+    fallback_indexes = [i for i, display_id in enumerate(display_ids) if not display_id]
+    fallback_values = await asyncio.gather(*(
+        fallback_display_id(visible[i]["item_id"]) for i in fallback_indexes
+    ))
+    for index, display_id in zip(fallback_indexes, fallback_values):
+        display_ids[index] = display_id
 
     items = []
     missing = []
