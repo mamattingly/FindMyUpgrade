@@ -1,5 +1,5 @@
 from backend import recommendations as rec
-from backend.main import _parse_wowhead_item_page, _spec_from_api
+from backend.main import _parse_wowhead_item_page, _spec_from_api, _model_viewer_slot, _appearance_gender_id
 
 
 def test_normalise_stats_from_blizzard_shape():
@@ -228,3 +228,18 @@ def test_spec_parser_does_not_guess_when_active_group_has_multiple_unmarked_spec
         ],
     }]}
     assert _spec_from_api(payload) == "Unknown"
+
+
+def test_classic_model_viewer_maps_visible_equipment_slots():
+    assert _model_viewer_slot({"name": "Head"}) == 1
+    assert _model_viewer_slot({"name": "Shoulder"}) == 3
+    assert _model_viewer_slot({"name": "Chest"}, {"name": "Robe"}) == 20
+    assert _model_viewer_slot({"name": "Main Hand"}) == 16
+    assert _model_viewer_slot({"name": "Off Hand"}) == 17
+    assert _model_viewer_slot({"name": "Finger"}) is None
+
+
+def test_classic_model_viewer_maps_appearance_gender():
+    assert _appearance_gender_id({"name": "Male"}) == 1
+    assert _appearance_gender_id({"name": "Female"}) == 0
+    assert _appearance_gender_id({"name": "Unknown"}) is None
