@@ -100,46 +100,49 @@ jobs:
               print("Relevant browser responses:", json.dumps(relevant_responses[:100], indent=2)[:12000])
               print("Relevant failed requests:", json.dumps(failed[:50], indent=2)[:7000])
               print("Browser console errors:", json.dumps(console_errors[:30], indent=2)[:5000])
-              deep = page.evaluate("""() => {
+              deep = page.evaluate("""async () => {
                 const c=document.querySelector("canvas");
                 const scripts=[...document.scripts].map((s,i)=>({
-                  index:i,src:s.src||null,type:s.type||"",text:(s.textContent||"").slice(0,12000)
+                  index:i,src:s.src||null,type:s.type||"",text:s.textContent||""
                 })).filter(x=>x.text && /ZamModelViewer|generateModels|CONTENT_PATH|classicplus|character/i.test(x.text));
                 const w=window.ZamModelViewer;
+                const scriptSnippets=scripts.map(x=>{
+                  const terms=["function loadViewer","async function loadViewer","ZamModelViewer","new ZamModelViewer","modelEnv","CONTENT_PATH","generateModels"];
+                  const hits=[];
+                  for(const term of terms){
+                    const i=x.text.indexOf(term);
+                    if(i>=0)hits.push({term,snippet:x.text.slice(Math.max(0,i-1200),Math.min(x.text.length,i+6500))});
+                  }
+                  return {index:x.index,src:x.src,type:x.type,hits};
+                });
+                const viewerUrl="https://armorywowforever.com/modelviewer/classicplus/deployment/viewer/35ee72d/viewer.min.js";
+                let viewer={status:null,bytes:0,snippets:[],error:null};
+                try{
+                  const r=await fetch(viewerUrl);
+                  const js=await r.text();
+                  viewer.status=r.status;viewer.bytes=js.length;
+                  for(const term of ["ZamModelViewer","class ZamModelViewer","function ZamModelViewer","meta/character","charactercustomization","modelviewer/v2","/m2/","/bone/"]){
+                    const i=js.indexOf(term);
+                    if(i>=0)viewer.snippets.push({term,text:js.slice(Math.max(0,i-900),i+2200)});
+                  }
+                }catch(e){viewer.error=String(e);}
+                const data={};
+                for(const asset of ["meta/character/1.json","meta/charactercustomization/1.json"]){
+                  try{
+                    const r=await fetch("https://armorywowforever.com/modelviewer/v2/classicplus/"+asset);
+                    const value=await r.json();data[asset]={status:r.status,value};
+                  }catch(e){data[asset]={error:String(e)};}
+                }
                 return {
                   canvasParent:c?.parentElement?.parentElement?.outerHTML?.slice(0,6000)||null,
                   canvasStyle:c?{display:getComputedStyle(c).display,visibility:getComputedStyle(c).visibility,width:getComputedStyle(c).width,height:getComputedStyle(c).height}:null,
                   viewerGlobals:w?Object.keys(w):[],
                   viewerPrototype:w?Object.getOwnPropertyNames(w.prototype||{}):[],
-                  scriptSnippets:scripts.map(x=>({index:x.index,src:x.src,type:x.type,text:x.text.slice(-9000)})),
+                  scriptSnippets,viewer,data,
                   globals:Object.keys(window).filter(k=>/model|viewer|character/i.test(k)).slice(0,100)
-                }
+                };
               }""")
-              print("Armory deep viewer init:", json.dumps(deep, indent=2)[:24000])
-              viewer_url="https://armorywowforever.com/modelviewer/classicplus/deployment/viewer/35ee72d/viewer.min.js"
-              with urllib.request.urlopen(viewer_url, timeout=45) as response:
-                  viewer_js=response.read().decode("utf-8","replace")
-              print("Armory viewer deployment:", {
-                  "bytes":len(viewer_js),
-                  "hasClassicPlus":"classicplus" in viewer_js.lower(),
-                  "hasM2":".m2" in viewer_js.lower(),
-                  "hasMO3":".mo3" in viewer_js.lower(),
-                  "hasZamModelViewer":"ZamModelViewer" in viewer_js,
-              })
-              for marker in ("ZamModelViewer","classicplus","meta/character","charactercustomization","modelviewer/v2"):
-                  pos=viewer_js.find(marker)
-                  if pos>=0:
-                      print("Armory viewer marker",marker,viewer_js[max(0,pos-900):pos+1800])
-              for asset in ("meta/character/1.json","meta/charactercustomization/1.json"):
-                  asset_url="https://armorywowforever.com/modelviewer/v2/classicplus/"+asset
-                  try:
-                      with urllib.request.urlopen(asset_url,timeout=30) as response:
-                          body=response.read()
-                          if asset.endswith(".json"):
-                              data=json.loads(body)
-                              print("Armory viewer data",asset,json.dumps(data,indent=2)[:9000])
-                  except Exception as exc:
-                      print("Armory viewer data error",asset,type(exc).__name__,str(exc)[:300])
+              print("Armory deep viewer init:", json.dumps(deep, indent=2)[:36000])
 
               browser.close()
           PY
