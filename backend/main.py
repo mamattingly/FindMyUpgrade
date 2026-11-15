@@ -756,6 +756,7 @@ async def scan(req: ScanRequest):
         faction = faction_obj.get("name") or faction_obj.get("slug") or faction_obj.get("type")
         ruleset = character.get("ruleset") or {}
         gear, spec, professions, api_status = [], "Unknown", [], "credentials_not_configured"
+        model_data, media_assets = None, {}
         dungeon_recommendations = {"status": "credentials_not_configured", "rankings": [], "recommended": None, "message": "Configure Blizzard API credentials to compare dungeon loot against equipped gear."}
         token = await _blizzard_token(client)
         if token:
