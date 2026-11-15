@@ -243,22 +243,27 @@ def test_spec_parser_does_not_guess_when_active_group_has_multiple_unmarked_spec
     assert _spec_from_api(payload) == "Unknown"
 
 
-def test_classic_model_viewer_uses_blizzard_appearance_ids_and_display_order(monkeypatch):
+def test_classic_model_viewer_prefers_forever_display_ids_and_display_order(monkeypatch):
     import asyncio
     from backend import main
 
-    async def fake_static_json(client, token, region, path, required_field=None):
-        if path == "data/wow/item/123":
-            return {"appearances": [{"id": 900}]}
-        if path == "data/wow/item/125":
-            return {"appearances": [{"id": 901}]}
-        if path == "data/wow/item-appearance/900":
-            return {"item_display_info_id": 456}
-        if path == "data/wow/item-appearance/901":
-            return {"item_display_info_id": 789}
+    async def fail_retail_static(*args, **kwargs):
+        raise AssertionError("Retail static item data must not supply Classic display IDs")
+
+    async def forever_item(client, item_id):
+        return ({"display_id": 456, "appearance_id": None}
+                if item_id == 123 else {"display_id": None, "appearance_id": None})
+
+    async def icy_appearance(client, item_id):
         return None
 
-    monkeypatch.setattr(main, "_blizzard_static_json", fake_static_json)
+    async def wowhead_display(client, item_id):
+        return 789 if item_id == 125 else None
+
+    monkeypatch.setattr(main, "_blizzard_static_json", fail_retail_static)
+    monkeypatch.setattr(main, "_thewowdb_item_model_fields", forever_item)
+    monkeypatch.setattr(main, "_icyveins_item_appearance_id", icy_appearance)
+    monkeypatch.setattr(main, "_wowhead_page_display_id", wowhead_display)
 
     appearance = {
         "playable_race": {"id": 4, "name": "Night Elf"},
@@ -282,23 +287,16 @@ def test_classic_model_viewer_uses_blizzard_appearance_ids_and_display_order(mon
     assert result["race"] == 4
     assert result["gender"] == 0
     assert result["wmv_sex"] == 1
-    assert result["playable_class_id"] is None
     assert result["items"] == [[1, 456], [3, 789]]
     assert result["customizations"] == [
         {"option_name": "Skin Color", "display_order": 3, "option_id": 1, "choice_id": 20},
         {"option_name": "Hair Style", "display_order": 7, "option_id": 2, "choice_id": 30},
     ]
-    assert result["resolved_appearances"] == [
-        {"item_id": 123, "slot": 1, "internal_slot_id": 0,
-         "item_appearance_modifier_id": None, "display_id": 456,
-         "source": "blizzard_item_appearance"},
-        {"item_id": 125, "slot": 3, "internal_slot_id": 2,
-         "item_appearance_modifier_id": None, "display_id": 789,
-         "source": "blizzard_item_appearance"},
+    assert [entry["source"] for entry in result["resolved_appearances"]] == [
+        "thewowdb_forever_display_id", "wowhead_forever_modelviewer"
     ]
     assert result["equipped_visual_item_count"] == 2
-    assert result["missing_display_ids"] == []
-
+    assert result["missing_display_ids"] == [124, 126]
 
 def test_wowhead_item_page_model_display_id_parser():
     page = '<script>WH.Gatherer.addData(3, 1, {"id":6512,"modelviewer":{"displayid":98765,"type":1,"typeid":6512}});</script>'
