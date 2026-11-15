@@ -42,7 +42,8 @@ def test_recommendation_selects_dungeon_with_real_slot_upgrades(monkeypatch):
     item_data = {
         1001: {"name": "Better Robe", "inventory_type": "Chest", "item_class": "Armor",
                "item_subclass": "Cloth", "required_level": 30, "item_level": 35,
-               "stats": [{"name": "Intellect", "value": 12}], "stats_display": ["+12 Intellect"],\n               "drop_chance": 25, "drop_source_name": "Test Boss"},
+               "stats": [{"name": "Intellect", "value": 12}], "stats_display": ["+12 Intellect"],
+               "drop_chance": 25, "drop_source_name": "Test Boss"},
         1002: {"name": "Leather Tunic", "inventory_type": "Chest", "item_class": "Armor",
                "item_subclass": "Leather", "required_level": 30, "item_level": 40,
                "stats": [{"name": "Intellect", "value": 50}]},
@@ -52,4 +53,4 @@ def test_recommendation_selects_dungeon_with_real_slot_upgrades(monkeypatch):
     assert result["recommended"]["name"] == "Test Crypt"
     assert result["recommended"]["upgrade_slots"] == 1
     assert result["recommended"]["best_upgrade"]["name"] == "Better Robe"
-    assert result["drop_rates_available"] is False
+    assert result["drop_rates_available"] is True
