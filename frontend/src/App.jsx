@@ -2,7 +2,7 @@ import {useEffect,useMemo,useState} from "react";
 import {Search,ChevronDown,ExternalLink,Shield,Compass,BookOpen,Sparkles,Target,Package,Download} from "lucide-react";
 import CharacterModel from "./CharacterModel.jsx";
 import {canExportWmvCharacter,downloadWmvCharacter} from "./wowModelViewerExport.js";
-import {KEY,REGION_KEY,SKILL_KEY,GOALS_KEY,RUNS_KEY,NAMES,SOURCES,iconFallback,read,loadForeverDungeonXp,rankInfo,relevantStats,rankFarmDungeons} from "./lib/advisor.js";
+import {KEY,REGION_KEY,SKILL_KEY,GOALS_KEY,RUNS_KEY,NAMES,SOURCES,iconFallback,read,loadForeverDungeonXp,rankInfo,relevantStats,rankFarmDungeons,XP_CACHE_KEY,isDungeonXpEligible} from "./lib/advisor.js";
 function ItemIcon({src,name,size="large"}){return <span className={"itemicon "+size}><img src={src||iconFallback} alt={name+" icon"} loading="lazy" onError={e=>{e.currentTarget.src=iconFallback}}/></span>}
 function StatLine({stats}){if(!stats?.length)return null;return <div className="statline">{stats.map((s,i)=><span key={i}>{s}</span>)}</div>}
 export default function App(){
@@ -28,9 +28,11 @@ export default function App(){
  const currentSkills=skills[skillKey]||{},gear=useMemo(()=>current?.gear||[],[current]);
  const baseRec=current?.recommendations;
  const dungeonNames=baseRec?.rankings?.map(d=>d.name)||[];
+ const xpQualified=goals.mustGrantXp?dungeonNames.filter(dungeon=>isDungeonXpEligible(xpMobLevels[dungeon],current?.level)):dungeonNames;
+ const eligibleRankings=goals.mustGrantXp?(baseRec?.rankings||[]).filter(d=>xpQualified.includes(d.name)):baseRec?.rankings;
  const characterRuns=runLogs.filter(r=>r.characterKey===skillKey);
- const farmRanking=rankFarmDungeons(baseRec?.rankings,characterRuns,goals);
- const rec=baseRec?{...baseRec,rankings:farmRanking.rankings,recommended:farmRanking.rankings[0]||baseRec.recommended}:null;
+ const farmRanking=rankFarmDungeons(eligibleRankings,characterRuns,goals);
+ const rec=baseRec?{...baseRec,rankings:farmRanking.rankings,recommended:farmRanking.rankings[0]||null}:null;
  const best=rec?.recommended;
  function saveRun(e){e.preventDefault();if(!runDungeon)return;const minutes=Math.max(1,Math.min(600,Number(runMinutes)||1));setRunLogs(old=>[{id:crypto.randomUUID(),characterKey:skillKey,dungeon:runDungeon,minutes,cloth:Math.max(0,Number(runCloth)||0),disenchantables:Math.max(0,Number(runDisenchantables)||0),createdAt:new Date().toISOString()},...old].slice(0,500));setMessage("Dungeon run saved. Recommendations recalculated from your recorded yields.");}
  async function scan(characterName=name,characterRegion=region){
