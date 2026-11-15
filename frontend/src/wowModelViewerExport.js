@@ -108,7 +108,7 @@ export function buildWmvCharacterXml(modelData, characterClass = "") {
   }
 
   const customizations = Array.isArray(modelData.customizations) ? modelData.customizations : [];
-  if (customizations.some((entry) =>
+  if (!customizations.length || customizations.some((entry) =>
     !positiveInteger(entry.option_id) || !positiveInteger(entry.choice_id)
   )) {
     throw new Error("Refresh this character once to retrieve the original customization IDs before exporting.");
