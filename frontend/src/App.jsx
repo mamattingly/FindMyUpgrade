@@ -48,7 +48,8 @@ export default function App(){
  const [runDisenchantables,setRunDisenchantables]=useState("0");
  const [showAllSkills,setShowAllSkills]=useState(false);
  const [upgradeStats,setUpgradeStats]=useState(()=>read("wow-forever-upgrade-stat-preferences",[]));
- const [hoverPreview,setHoverPreview]=useState(null);\n const [hoverTooltip,setHoverTooltip]=useState(null);
+ const [hoverPreview,setHoverPreview]=useState(null);
+ const [hoverTooltip,setHoverTooltip]=useState(null);
  useEffect(()=>localStorage.setItem(KEY,JSON.stringify(profiles)),[profiles]);
  useEffect(()=>localStorage.setItem(REGION_KEY,region),[region]);
  useEffect(()=>localStorage.setItem(SKILL_KEY,JSON.stringify(skills)),[skills]);
