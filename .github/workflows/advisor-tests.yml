@@ -103,7 +103,8 @@ jobs:
           if not any(x.get("parsed") and x.get("name") and x.get("stats") for x in items):
               raise SystemExit("WarcraftDB did not return a parsed Forever item tooltip with stats.")
           PY
-      - name: Verify Wowhead Forever tooltip API
+      - name: Probe Wowhead Forever tooltip API (optional source)
+        continue-on-error: true
         env:
           APP_URL: https://wow-forever-dungeon-advisor-1zlg.onrender.com
         run: |
