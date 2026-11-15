@@ -182,6 +182,18 @@ def slot_key(value: str | None) -> str | None:
 def item_score(item: dict[str, Any], class_name: str, spec: str | None = None) -> float:
     weights = stat_weights(class_name, spec)
     stats = normalise_stats(item.get("stats"))
+    # A healing specialization must not receive a DPS-only spell-power item
+    # merely because it also carries generic Intellect or item-level budget.
+    # Forever exposes Healing and Damage as separate stats, so require an
+    # actual healing stat whenever an item has damage-only spell power.
+    healing_specs = {
+        ("Priest", "Discipline"), ("Priest", "Holy"),
+        ("Druid", "Restoration"), ("Shaman", "Restoration"),
+        ("Paladin", "Holy"),
+    }
+    if (class_name, spec) in healing_specs:
+        if stats.get("spell_damage", 0.0) > 0 and stats.get("spell_healing", 0.0) <= 0:
+            return 0.0
     # Do not let armor or item level turn an otherwise irrelevant item into
     # an upgrade. In particular, a healer's spell-damage-only drop must not
     # become attractive merely because it has more armor or a higher item level.
