@@ -159,7 +159,7 @@ def test_profession_only_dungeons_remain_available_for_run_logging(monkeypatch):
          "faction": None, "source_url": "https://example.invalid/dungeon", "bosses": []}
         for i in range(10)
     ])
-    character = {"level": 34, "class": "Priest", "faction": "Alliance"}
+    character = {"level": 34, "class": "Priest", "spec": "Discipline", "faction": "Alliance"}
     result = rec.recommend_dungeons(character, [], {9999: {"name": "unused"}})
     assert result["status"] == "no_upgrades_found"
     assert len(result["rankings"]) == 10
