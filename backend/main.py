@@ -1233,9 +1233,27 @@ async def scan(req: ScanRequest):
 
 
 
+def _modelviewer_asset_candidates(viewer_flavor, clean):
+    """Use the requested data pack first, then compatible shared Classic assets."""
+    candidates = [f"https://wow.zamimg.com/modelviewer/{viewer_flavor}/{clean}"]
+    if viewer_flavor == "live":
+        # A Forever character is based on Classic-era models; old item display
+        # records and character meshes may be absent from Wowhead's live pack.
+        candidates.append(f"https://wow.zamimg.com/modelviewer/classic/{clean}")
+        match = re.fullmatch(r"meta/armor/(21|22)/(\\d+)\\.json", clean)
+        if match:
+            candidates.append(
+                f"https://wow.zamimg.com/modelviewer/classic/meta/item/{match.group(2)}.json")
+        match = re.fullmatch(r"meta/armor/5/(\\d+)\\.json", clean)
+        if match:
+            candidates.append(
+                f"https://wow.zamimg.com/modelviewer/classic/meta/armor/20/{match.group(1)}.json")
+    return list(dict.fromkeys(candidates))
+
+
 @app.get("/api/modelviewer/{viewer_flavor}/{asset_path:path}")
 async def modelviewer_asset(viewer_flavor: str, asset_path: str):
-    """Same-origin, cacheable proxy for Classic and live WoW model-viewer data."""
+    """Same-origin model data proxy with a narrow Classic fallback for Forever."""
     if viewer_flavor not in {"classic", "live"}:
         raise HTTPException(400, "Unsupported model viewer data set.")
     clean = asset_path.strip("/")
@@ -1247,16 +1265,28 @@ async def modelviewer_asset(viewer_flavor: str, asset_path: str):
         body, media_type = cached
         return Response(content=body, media_type=media_type,
                         headers={"Cache-Control": "public, max-age=86400"})
-    url = f"https://wow.zamimg.com/modelviewer/{viewer_flavor}/{clean}"
-    try:
-        async with httpx.AsyncClient(timeout=25, follow_redirects=True) as client:
-            upstream = await client.get(url)
-    except httpx.HTTPError as exc:
-        raise HTTPException(502, "The WoW model asset server could not be reached.") from exc
-    if upstream.status_code == 404:
-        raise HTTPException(404, f"{viewer_flavor.title()} model asset not found.")
-    if upstream.status_code != 200:
-        raise HTTPException(502, f"Model asset server returned HTTP {upstream.status_code}.")
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "Referer": "https://www.wowhead.com/",
+        "Origin": "https://www.wowhead.com",
+        "Accept": "*/*",
+    }
+    upstream = None
+    for url in _modelviewer_asset_candidates(viewer_flavor, clean):
+        try:
+            async with httpx.AsyncClient(timeout=30, follow_redirects=True, headers=headers) as client:
+                response = await client.get(url)
+        except httpx.HTTPError:
+            continue
+        if response.status_code == 200 and response.content:
+            upstream = response
+            break
+        if response.status_code not in {404, 403}:
+            raise HTTPException(502, f"Model asset server returned HTTP {response.status_code}.")
+    if upstream is None:
+        raise HTTPException(404, "Model asset not found in the selected or fallback data sets.")
+
     media_type = upstream.headers.get("content-type", "application/octet-stream").split(";")[0]
     body = upstream.content
     if len(body) <= 12 * 1024 * 1024:
@@ -1265,7 +1295,6 @@ async def modelviewer_asset(viewer_flavor: str, asset_path: str):
         MODEL_ASSET_CACHE[cache_key] = (body, media_type)
     return Response(content=body, media_type=media_type,
                     headers={"Cache-Control": "public, max-age=86400"})
-
 
 @app.get("/api/item-icons")
 async def item_icons(ids: str):
