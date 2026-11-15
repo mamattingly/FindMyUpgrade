@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from typing import Literal
 from backend.recommendations import DUNGEONS, recommend_dungeons
 
-app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.5.8")
+app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.5.9")
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "frontend" / "dist"
 REGION_LOCALES = {"us": "en_US", "eu": "en_GB", "kr": "ko_KR", "tw": "zh_TW"}
@@ -781,6 +781,47 @@ async def warcraftdb_diagnostics(ids: str = "7711,7713,7714,281290,274291"):
                 "drop_chance": result.get("drop_chance"), "data_url": result.get("data_url"),
             })
         return {"app_version": app.version, "items": items}
+
+
+@app.get("/api/static-namespace-diagnostics")
+async def static_namespace_diagnostics(ids: str = "7711,7713,7714,281290"):
+    try:
+        item_ids = [int(x.strip()) for x in ids.split(",") if x.strip()]
+    except ValueError:
+        raise HTTPException(400, "Item IDs must be comma-separated integers.")
+    if not item_ids or len(item_ids) > 8:
+        raise HTTPException(400, "Supply between 1 and 8 item IDs.")
+    namespaces = ("static-forever-us", "static-classic1x-us", "static-classic-us", "static-us")
+    async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+        token = await _blizzard_token(client)
+        if not token:
+            return {"app_version": app.version, "token_available": False, "items": []}
+        results = []
+        for item_id in item_ids:
+            variants = []
+            for namespace in namespaces:
+                try:
+                    response = await client.get(
+                        f"https://us.api.blizzard.com/data/wow/item/{item_id}",
+                        params={"namespace": namespace, "locale": "en_US"},
+                        headers={"Authorization": f"Bearer {token}"}, timeout=8)
+                    if response.status_code == 200:
+                        data = response.json()
+                        preview = data.get("preview_item") or {}
+                        variants.append({
+                            "namespace": namespace, "http_status": 200,
+                            "name": data.get("name"),
+                            "top_keys": sorted(data.keys()),
+                            "preview_keys": sorted(preview.keys()),
+                            "item_level": _numeric_value(preview.get("level") or data.get("level")),
+                            "stats": preview.get("stats") or data.get("stats") or [],
+                        })
+                    else:
+                        variants.append({"namespace": namespace, "http_status": response.status_code})
+                except (httpx.HTTPError, ValueError):
+                    variants.append({"namespace": namespace, "http_status": None})
+            results.append({"item_id": item_id, "variants": variants})
+        return {"app_version": app.version, "token_available": True, "items": results}
 
 @app.post("/api/analyze")
 async def analyze(payload: dict):
