@@ -47,7 +47,7 @@ jobs:
       - name: Wait for this version to reach Render
         env:
           APP_URL: https://wow-forever-dungeon-advisor-1zlg.onrender.com
-          EXPECTED_VERSION: "0.5.6"
+          EXPECTED_VERSION: "0.5.7"
         run: |
           python - <<'PY'
           import json, os, time, urllib.request
@@ -83,6 +83,9 @@ jobs:
           items = payload.get("item_samples") or []
           if not any(x.get("http_status") == 200 and x.get("name") and x.get("item_sample") for x in items):
               raise SystemExit("Thottbot Forever did not return a usable item record.")
+          zones = payload.get("zone_samples") or []
+          if not any(x.get("http_status") == 200 for x in zones):
+              raise SystemExit("Thottbot Forever did not return a dungeon zone loot table.")
           PY
       - name: Verify Forever static item data
         env:
