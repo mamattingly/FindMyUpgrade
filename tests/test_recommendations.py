@@ -374,7 +374,17 @@ def test_modelviewer_asset_fallback_candidates_for_forever():
     robe = _modelviewer_asset_candidates("live", "meta/armor/5/8857.json")
     assert robe[-1].endswith("/classic/meta/armor/20/8857.json")
     classic = _modelviewer_asset_candidates("classic", "meta/item/5554.json")
-    assert classic == ["https://wow.zamimg.com/modelviewer/classic/meta/item/5554.json"]
+    assert classic == [
+        "https://wow.zamimg.com/modelviewer/classic/meta/item/5554.json",
+        "https://wow.zamimg.com/modelviewer/live/meta/item/5554.json",
+    ]
+    head = _modelviewer_asset_candidates("classic", "meta/armor/1/712815.json")
+    assert head == [
+        "https://wow.zamimg.com/modelviewer/classic/meta/armor/1/712815.json",
+        "https://wow.zamimg.com/modelviewer/classic/meta/item/712815.json",
+        "https://wow.zamimg.com/modelviewer/live/meta/armor/1/712815.json",
+        "https://wow.zamimg.com/modelviewer/live/meta/item/712815.json",
+    ]
 
 
 def test_wowhead_parser_keeps_healing_and_damage_bonuses_separate():
