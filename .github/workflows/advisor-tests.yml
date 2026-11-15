@@ -47,7 +47,7 @@ jobs:
       - name: Wait for this version to reach Render
         env:
           APP_URL: https://wow-forever-dungeon-advisor-1zlg.onrender.com
-          EXPECTED_VERSION: "0.5.7"
+          EXPECTED_VERSION: "0.5.8"
         run: |
           python - <<'PY'
           import json, os, time, urllib.request
@@ -87,25 +87,20 @@ jobs:
           if not any(x.get("http_status") == 200 for x in zones):
               raise SystemExit("Thottbot Forever did not return a dungeon zone loot table.")
           PY
-      - name: Verify Forever static item data
+      - name: Verify WarcraftDB Forever tooltip data
         env:
           APP_URL: https://wow-forever-dungeon-advisor-1zlg.onrender.com
         run: |
           python - <<'PY'
           import json, os, urllib.parse, urllib.request
-          query = urllib.parse.urlencode({"region": "us", "ids": "7711,7713,7714"})
-          url = os.environ["APP_URL"].rstrip("/") + "/api/item-diagnostics?" + query
-          with urllib.request.urlopen(url, timeout=45) as response:
+          query = urllib.parse.urlencode({"ids": "7711,7713,7714,281290,274291"})
+          url = os.environ["APP_URL"].rstrip("/") + "/api/warcraftdb-diagnostics?" + query
+          with urllib.request.urlopen(url, timeout=60) as response:
               payload = json.load(response)
           print(json.dumps(payload, indent=2))
-          valid = [item for item in payload.get("items", [])
-                   if item.get("http_status") == 200 and item.get("name")]
-          if not valid:
-              raise SystemExit("No Forever static item records were returned.")
-          if not any(item.get("stats") for item in valid):
-              raise SystemExit("Item records loaded, but no item stats were parsed.")
-          if not any(item.get("drop_chance") for item in valid):
-              raise SystemExit("Wowhead Forever item pages did not provide a parsed drop chance.")
+          items = payload.get("items") or []
+          if not any(x.get("parsed") and x.get("name") and x.get("stats") for x in items):
+              raise SystemExit("WarcraftDB did not return a parsed Forever item tooltip with stats.")
           PY
       - name: Verify live character scan and dungeon analysis
         env:
