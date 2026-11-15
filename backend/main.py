@@ -227,6 +227,112 @@ def _normalise_thewowdb_item(data, item_id):
         "data_source": "TheWoWDB",
     }
 
+def _parse_wowhead_item_page(page, item_id):
+    soup = BeautifulSoup(page, "html.parser")
+    for tag in soup(["script", "style", "noscript"]):
+        tag.decompose()
+    lines = [str(x).strip() for x in soup.stripped_strings if str(x).strip()]
+    starts = [i for i, line in enumerate(lines) if re.match(r"Item Level\\s+\\d+", line, re.I)]
+    if not starts:
+        return None
+    start = starts[-1]
+    section = lines[start:start + 35]
+    section_text = " ".join(section)
+    heading = soup.find("h1")
+    name = heading.get_text(" ", strip=True) if heading else None
+    level_match = re.search(r"Item Level\\s+(\\d+)", section_text, re.I)
+    required_match = re.search(r"Requires Level\\s+(\\d+)", section_text, re.I)
+    drop_match = re.search(r"Drop Chance:\\s*([\\d.]+)\\s*%", section_text, re.I)
+    source_match = re.search(r"Dropped by:\\s*(.*?)\\s+Drop Chance:", section_text, re.I)
+    armor_match = re.search(r"(\\d+)\\s+Armor\\b", section_text, re.I)
+    dps_match = re.search(r"\\(([\\d.]+)\\s+damage per second\\)", section_text, re.I)
+    type_line = next((line for line in section[1:7] if re.search(
+        r"\\b(Head|Neck|Shoulder|Back|Chest|Robe|Shirt|Wrist|Hands|Waist|Legs|Feet|Finger|Trinket|Two-Hand|One-Hand|Main Hand|Off Hand|Held In Off-hand|Ranged)\\b",
+        line, re.I)), "")
+    low_type = type_line.casefold()
+    if "two-hand" in low_type or "two hand" in low_type:
+        inventory = "Two-Hand"
+    elif "one-hand" in low_type or "one hand" in low_type:
+        inventory = "One-Hand"
+    elif "main hand" in low_type:
+        inventory = "Main Hand"
+    elif "held in off-hand" in low_type:
+        inventory = "Held In Off-hand"
+    elif "off hand" in low_type:
+        inventory = "Off Hand"
+    elif "ranged" in low_type or "wand" in low_type:
+        inventory = "Ranged"
+    elif "shoulder" in low_type:
+        inventory = "Shoulder"
+    elif "chest" in low_type or "robe" in low_type:
+        inventory = "Chest"
+    elif "back" in low_type or "cloak" in low_type:
+        inventory = "Back"
+    elif "finger" in low_type or "ring" in low_type:
+        inventory = "Finger"
+    elif "trinket" in low_type:
+        inventory = "Trinket"
+    else:
+        inventory = next((x for x in ("Head", "Neck", "Shirt", "Wrist", "Hands", "Waist", "Legs", "Feet")
+                          if x.casefold() in low_type), None)
+    weapon_tokens = ("staff", "wand", "dagger", "mace", "sword", "axe", "polearm", "fist", "bow", "gun", "crossbow", "thrown")
+    armor_tokens = ("cloth", "leather", "mail", "plate", "shield")
+    item_class = "Weapon" if any(x in low_type for x in weapon_tokens) else "Armor"
+    subclass = next((x.title() for x in weapon_tokens + armor_tokens if x in low_type), "Miscellaneous")
+    stats = []
+    stat_patterns = [
+        ("Stamina", r"\\+([\\d.]+)\\s+Stamina\\b"),
+        ("Intellect", r"\\+([\\d.]+)\\s+Intellect\\b"),
+        ("Spirit", r"\\+([\\d.]+)\\s+Spirit\\b"),
+        ("Strength", r"\\+([\\d.]+)\\s+Strength\\b"),
+        ("Agility", r"\\+([\\d.]+)\\s+Agility\\b"),
+        ("Attack Power", r"\\+([\\d.]+)\\s+Attack Power\\b"),
+        ("Spell Damage", r"\\+([\\d.]+)\\s+Spell Damage\\b"),
+        ("Spell Healing", r"\\+([\\d.]+)\\s+Healing\\b"),
+        ("Mana per 5 sec", r"Restores\\s+([\\d.]+)\\s+mana per 5 sec"),
+    ]
+    for stat_name, pattern in stat_patterns:
+        match = re.search(pattern, section_text, re.I)
+        if match:
+            stats.append({"name": stat_name, "value": float(match.group(1))})
+    for pattern, stat_name in [
+        (r"Increases damage and healing done by magical spells and effects by up to\\s+([\\d.]+)", "Spell Healing"),
+        (r"Increases healing done by spells and effects by up to\\s+([\\d.]+)", "Spell Healing"),
+        (r"Increases damage done by spells and effects by up to\\s+([\\d.]+)", "Spell Damage"),
+        (r"Improves your chance to get a critical strike by\\s+([\\d.]+)%", "Spell Critical Strike"),
+    ]:
+        match = re.search(pattern, section_text, re.I)
+        if match:
+            stats.append({"name": stat_name, "value": float(match.group(1))})
+    return {
+        "id": int(item_id), "name": name, "required_level": int(required_match.group(1)) if required_match else 0,
+        "inventory_type": inventory, "item_class": item_class, "item_subclass": subclass,
+        "item_level": int(level_match.group(1)) if level_match else None,
+        "stats": stats, "stats_display": [x for x in section if re.match(r"^\\+|^Equip:", x)],
+        "armor": int(armor_match.group(1)) if armor_match else 0,
+        "weapon_dps": float(dps_match.group(1)) if dps_match else 0,
+        "drop_chance": float(drop_match.group(1)) if drop_match else None,
+        "drop_source_name": source_match.group(1).strip() if source_match else None,
+        "data_url": f"https://www.wowhead.com/forever/item={int(item_id)}",
+        "data_source": "Wowhead Forever",
+    }
+
+async def _wowhead_item_data(client, item_id):
+    try:
+        response = await client.get(f"https://www.wowhead.com/forever/item={int(item_id)}",
+            headers={"User-Agent": "Mozilla/5.0 (compatible; ForeverDungeonAdvisor/0.5; +https://github.com/mamattingly/FindMyUpgrade)",
+                     "Accept": "text/html,application/xhtml+xml"}, timeout=10)
+        if response.status_code != 200:
+            return {"http_status": response.status_code, "item_id": int(item_id)}
+        parsed = _parse_wowhead_item_page(response.text, item_id)
+        if not parsed:
+            return {"http_status": 200, "item_id": int(item_id), "parsed": False,
+                    "page_title": BeautifulSoup(response.text, "html.parser").title.get_text(" ", strip=True)
+                    if BeautifulSoup(response.text, "html.parser").title else None}
+        return {"http_status": 200, "parsed": True, **parsed}
+    except httpx.HTTPError:
+        return {"http_status": None, "item_id": int(item_id), "error": "request_error"}
+
 async def _static_item_data(client, token, region, item_id, semaphore):
     cache_key = (region, int(item_id))
     if cache_key in ITEM_CACHE:
