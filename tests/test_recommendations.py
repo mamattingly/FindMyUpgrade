@@ -1,5 +1,5 @@
 from backend import recommendations as rec
-from backend.main import _parse_wowhead_item_page, _spec_from_api, _model_viewer_slot, _appearance_gender_id
+from backend.main import _parse_wowhead_item_page, _spec_from_api, _build_character_model
 
 
 def test_normalise_stats_from_blizzard_shape():
@@ -230,16 +230,48 @@ def test_spec_parser_does_not_guess_when_active_group_has_multiple_unmarked_spec
     assert _spec_from_api(payload) == "Unknown"
 
 
-def test_classic_model_viewer_maps_visible_equipment_slots():
-    assert _model_viewer_slot({"name": "Head"}) == 1
-    assert _model_viewer_slot({"name": "Shoulder"}) == 3
-    assert _model_viewer_slot({"name": "Chest"}, {"name": "Robe"}) == 20
-    assert _model_viewer_slot({"name": "Main Hand"}) == 16
-    assert _model_viewer_slot({"name": "Off Hand"}) == 17
-    assert _model_viewer_slot({"name": "Finger"}) is None
+def test_classic_model_viewer_uses_blizzard_appearance_ids_and_display_order(monkeypatch):
+    import asyncio
+    from backend import main
 
+    async def fake_static_json(client, token, region, path):
+        if path == "data/wow/item/123":
+            return {"appearances": [{"id": 900}]}
+        if path == "data/wow/item/125":
+            return {"appearances": [{"id": 901}]}
+        if path == "data/wow/item-appearance/900":
+            return {"item_display_info_id": 456}
+        if path == "data/wow/item-appearance/901":
+            return {"item_display_info_id": 789}
+        return None
 
-def test_classic_model_viewer_maps_appearance_gender():
-    assert _appearance_gender_id({"name": "Male"}) == 1
-    assert _appearance_gender_id({"name": "Female"}) == 0
-    assert _appearance_gender_id({"name": "Unknown"}) is None
+    monkeypatch.setattr(main, "_blizzard_static_json", fake_static_json)
+
+    appearance = {
+        "playable_race": {"id": 4, "name": "Night Elf"},
+        "gender": {"type": "FEMALE", "name": "Female"},
+        "items": [
+            {"id": 123, "internal_slot_id": 0},
+            {"id": 124, "internal_slot_id": 1},
+            {"id": 125, "internal_slot_id": 2},
+            {"id": 126, "internal_slot_id": 10},
+        ],
+        "customizations": [
+            {"option": {"id": 1, "name": "Skin Color"},
+             "choice": {"id": 20, "display_order": 3}},
+            {"option": {"id": 2, "name": "Hair Style"},
+             "choice": {"id": 30, "display_order": 7}},
+        ],
+    }
+    result = asyncio.run(main._build_character_model(
+        object(), "token", "us", appearance, "Night Elf"))
+
+    assert result["race"] == 4
+    assert result["gender"] == 0
+    assert result["items"] == [[1, 456], [3, 789]]
+    assert result["customizations"] == [
+        {"option_name": "Skin Color", "display_order": 3},
+        {"option_name": "Hair Style", "display_order": 7},
+    ]
+    assert result["equipped_visual_item_count"] == 2
+    assert result["missing_display_ids"] == []
