@@ -1,12 +1,23 @@
 # WoW Forever Dungeon Advisor
 
-A React + FastAPI starter for comparing dungeons by expected useful upgrades per hour.
+A character-aware dungeon farming planner for WoW Forever.
 
-## Stack
-- React + Vite frontend
-- FastAPI backend
-- Browser localStorage for character profiles (no paid database required)
-- Render free web service deployment via `render.yaml`
+## Product direction
+The primary question is: **Which dungeon gives this character the best return on the time spent running it?**
+
+The planner is designed to combine:
+- Useful gear upgrades for the active character.
+- Optional Tailoring and Enchanting progression goals.
+- Material and disenchant value, once sourced drop tables are validated.
+- Dungeon completion-time estimates, once representative run-time data is available.
+
+Profession goals are optional. Players who only want gear upgrades should get a simple gear-first recommendation without configuring professions.
+
+## Current stack
+- React + Vite frontend.
+- FastAPI backend with asynchronous HTTPX requests to Blizzard and item-data sources.
+- Character profiles, skill levels and preferences stored in browser localStorage.
+- Render deployment with a built frontend served by the API.
 
 ## Run locally
 ```bash
@@ -15,12 +26,17 @@ cd frontend && npm install && npm run build
 cd ..
 uvicorn backend.main:app --reload
 ```
+
 Open http://localhost:8000.
 
-## Deploy
-Render Blueprint is configured to deploy the Python API and built frontend as one service. It watches `main` and can auto-sync later Git pushes after the initial Blueprint sync is approved.
+## Performance approach
+The current workload is dominated by remote Blizzard and item-data requests, not Python CPU time. The backend uses async HTTP, bounded concurrency, and process-level item caching. A runtime rewrite should only be undertaken if repeatable end-to-end benchmarks show that it materially improves latency or operating cost; switching languages alone will not make upstream APIs respond faster.
 
-## Important limitations
-This is an initial deployable starter, not yet a complete sourced game database. The ForeverBuilds scanner is best-effort; equipped gear extraction and reliable spec extraction need additional work. No unsourced drop percentages should be treated as verified. Profiles are stored in browser localStorage on that device; no server-side database is configured.
-
-Render's free web service may sleep after inactivity and has limited resources. No paid APIs or database are required by this starter.
+## Data integrity and current limitations
+- Character, equipped gear and item stats are sourced from Blizzard/Forever-compatible data.
+- Dungeon loot mappings are sourced from the AllTheThings Forever dataset.
+- Stat weights are estimates, not a full combat simulator.
+- The current ranking is gear-upgrade focused. Tailoring/Enchanting material weights and dungeon run-time normalization are not yet included because complete, trustworthy data has not been validated.
+- Do not interpret the current score as upgrades per hour or a complete profession-farming optimizer.
+- Profiles and profession progress are saved locally in the browser; no server-side database is configured.
+- Render's free service may sleep after inactivity.
