@@ -86,3 +86,114 @@ body{background:#101316}
 
 /* Keep the official Armory render underneath the live viewer until it is stable. */
 .armory-render-fallback{z-index:0!important;pointer-events:none}.armory-render-fallback.is-hidden{display:none}.wow-armory-viewer{z-index:1!important}
+
+
+/* 2026 visual refresh — calmer hierarchy, consistent surfaces, cleaner spacing. */
+:root{
+ color-scheme:dark;
+ --bg:#0d1114;--panel:#151c20;--panel-raised:#192226;--panel-soft:#11181b;
+ --line:#2a373a;--line-strong:#3a4b4c;--text:#e8efed;--muted:#91a29f;
+ --accent:#a9c9bd;--accent-strong:#c2d9d0;--accent-wash:#20312d;
+}
+body{background:radial-gradient(ellipse at 50% -30%,#24332f 0%,#111719 40%,#0d1114 78%);color:var(--text)}
+.app-shell{max-width:1440px;padding:0 38px}
+.topbar{height:70px;border-color:#263234}
+.brand-mark{border-radius:10px;background:linear-gradient(145deg,#c4d8cf,#7e9f94);color:#15201d;box-shadow:0 4px 18px #8eb4a51c}
+.brand b{letter-spacing:.19em}
+.search-hero{padding:52px 0 32px;gap:56px}
+.search-hero h1{font-size:clamp(44px,5vw,64px);line-height:1.02}
+.search-hero h1 em{color:var(--accent)}
+.search-hero p{max-width:390px}
+.search-card,.goal-panel,.side-card,.best-card,.empty-card,.alternatives,.welcome-panel,.run-log-panel{
+ background:linear-gradient(155deg,#182125 0%,#141b1f 100%);border:1px solid var(--line);border-radius:15px;box-shadow:0 12px 34px #00000018
+}
+.search-card{padding:20px}
+.search-controls input,.search-controls select,.top-actions select,.run-log-form input,.run-log-form select,.goal-skills input,.profession-inputs input{
+ background:#0f1619;border-color:#344245;border-radius:9px
+}
+.search-controls input:focus,.search-controls select:focus,.run-log-form input:focus,.run-log-form select:focus{
+ outline:2px solid #87ab9e55;outline-offset:1px;border-color:#7e9f94
+}
+.search-controls button,.run-log-form button{background:linear-gradient(135deg,#c1d7ce,#91b2a5);color:#15201c;border-radius:9px;box-shadow:0 5px 14px #0002}
+.character-strip{background:linear-gradient(110deg,#1a2528,#151e21 70%);border-color:#344345;border-radius:15px;padding:20px 24px;gap:26px}
+.character-model{border:1px solid #2d3c3e;border-radius:13px;background:radial-gradient(ellipse at 50% 35%,#263633,#101719 75%)}
+.char-name{font-size:21px;letter-spacing:-.025em}
+.char-sub{font-size:12px}
+.character-actions{gap:8px}
+.refresh-character,.native-export{border-color:#3c504c;background:#1b2927;color:#c2d6ce;border-radius:9px;padding:9px 12px}
+.armory-link{padding:8px 10px;border:1px solid #354641;border-radius:9px;background:#1a2523}
+.goal-panel,.run-log-panel{padding:22px 24px;margin-bottom:18px}
+.section-heading h2{font-size:20px;letter-spacing:-.035em}
+.goal-options{gap:9px}
+.goal-option{min-height:66px;padding:13px 14px;background:#11191c;border-color:#2b393b;border-radius:11px;transition:background .16s,border-color .16s,transform .16s}
+.goal-option:hover{border-color:#526c63;transform:translateY(-1px)}
+.goal-option.active{background:linear-gradient(120deg,#20312d,#1a2926);border-color:#59766b}
+.goal-option b{font-size:12px}
+.goal-option small{font-size:10px}
+.recommendation-layout{gap:20px;grid-template-columns:minmax(0,1.72fr) minmax(320px,.92fr)}
+.recommendation-heading{margin:5px 0 14px}
+.best-card{padding:23px;background:linear-gradient(145deg,#1a2528,#141c20 70%);border-color:#3b4c49}
+.best-card h3{font-size:32px;margin:13px 0 7px}
+.best-summary{max-width:720px;font-size:12px;line-height:1.65}
+.best-stats{margin:20px 0;padding:15px 0;border-color:#2b3a3b}
+.best-stats b{font-size:22px;color:#c6dbd2}
+.loot-heading{margin:2px 0 12px}
+.loot-heading span{font-size:10px;letter-spacing:.15em}
+.upgrade-stat-filter{padding:14px 15px!important;background:#11191c!important;border-color:#2b393b!important;border-radius:11px!important}
+.upgrade-stat-options{gap:9px 13px}
+.upgrade-stat-options label{padding:4px 0;color:#bdcbc7}
+.upgrade-results-count{margin:12px 0 9px}
+.loot-list{gap:9px}
+.loot-row{align-items:flex-start;padding:12px;background:linear-gradient(115deg,#11191c,#141d20);border-color:#2c3b3d;border-radius:12px;gap:12px}
+.loot-row:hover{border-color:#78968a;box-shadow:0 7px 18px #0003;transform:translateY(-1px)}
+.loot-row>.itemicon{margin-top:1px;width:46px;height:46px;border-radius:10px}
+.loot-main>b{font-size:13px;line-height:1.35}
+.loot-main>small{font-size:10px;margin-top:4px}
+.statline span{font-size:10px;color:#b8cbc3}
+.upgrade-comparison{padding:12px 13px;background:#0e1518;border-color:#263537;border-radius:10px}
+.comparison-items{gap:12px}
+.comparison-items b{font-size:11px}
+.comparison-stat{padding:6px 0;font-size:11px}
+.comparison-score{font-size:10px}
+.loot-extra{padding-top:2px}
+.loot-extra b{font-size:11px;color:#c6d9d1}
+.loot-extra small{font-size:9px}
+.side-card{padding:19px}
+.side-card h3{font-size:18px}
+.gear-grid{gap:8px}
+.gear-tile{padding:9px;background:#11191c;border-color:#29383a;border-radius:10px}
+.gear-info>b{font-size:10px}
+.profession-details summary{padding:18px}
+.method-card p,.run-log-heading p,.run-log-foot{line-height:1.65}
+.alternatives{padding:18px}
+.alternative-row{padding:12px 0}
+.notice{background:#172720;border-color:#385748;border-radius:10px}
+.footer{padding:26px 0 34px;border-color:#263234}
+.wow-item-tooltip{z-index:2147483000!important}
+@media(max-width:980px){
+ .app-shell{padding:0 22px}
+ .recommendation-layout{grid-template-columns:1fr}
+ .side-column{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .method-card{grid-column:1/-1}
+}
+@media(max-width:760px){
+ .search-hero{padding-top:38px;gap:22px}
+ .character-strip{grid-template-columns:minmax(160px,210px) minmax(0,1fr);gap:16px;padding:15px}
+ .character-model{height:220px}
+ .character-actions{grid-column:1/-1;justify-content:flex-start}
+}
+@media(max-width:640px){
+ .app-shell{padding:0 13px}
+ .topbar{height:62px}
+ .search-hero h1{font-size:42px}
+ .goal-panel,.run-log-panel{padding:16px}
+ .best-card{padding:16px}
+ .best-card h3{font-size:27px}
+ .loot-row{padding:10px;gap:9px}
+ .loot-row>.itemicon{width:40px;height:40px}
+ .side-column{grid-template-columns:1fr}
+ .method-card{grid-column:auto}
+ .character-strip{grid-template-columns:125px minmax(0,1fr);gap:12px}
+ .character-model{height:180px}
+ .char-name{font-size:17px}
+}
