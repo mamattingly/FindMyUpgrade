@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from typing import Literal
 from backend.recommendations import DUNGEONS, recommend_dungeons
 
-app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.8.5")
+app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.8.6")
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "frontend" / "dist"
 REGION_LOCALES = {"us": "en_US", "eu": "en_GB", "kr": "ko_KR", "tw": "zh_TW"}
@@ -243,6 +243,50 @@ async def _blizzard_static_json(client, token, region, path, required_field=None
     return None
 
 
+MODEL_DISPLAY_CACHE = {}
+
+
+def _parse_wowhead_model_display_id(page):
+    """Read the modelviewer.displayid embedded in a Wowhead item page."""
+    match = re.search(
+        r'"modelviewer"\s*:\s*\{[^{}]{0,1200}?"displayid"\s*:\s*(\d+)',
+        page or "", re.I | re.S)
+    if not match:
+        match = re.search(
+            r'"modelviewer"\s*:\s*\{[^{}]{0,1200}?"displayId"\s*:\s*(\d+)',
+            page or "", re.I | re.S)
+    return int(match.group(1)) if match else None
+
+
+async def _wowhead_page_display_id(client, item_id):
+    """Fallback for legacy items absent from Blizzard's appearance catalog."""
+    item_id = int(item_id)
+    if item_id in MODEL_DISPLAY_CACHE:
+        return MODEL_DISPLAY_CACHE[item_id]
+    urls = [f"https://www.wowhead.com/forever/item={item_id}"]
+    if item_id < 100000:
+        urls.append(f"https://www.wowhead.com/classic/item={item_id}")
+    for url in urls:
+        try:
+            response = await client.get(
+                url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36",
+                    "Accept": "text/html,application/xhtml+xml",
+                },
+                timeout=12)
+            if response.status_code != 200:
+                continue
+            display_id = _parse_wowhead_model_display_id(response.text)
+            if display_id:
+                MODEL_DISPLAY_CACHE[item_id] = display_id
+                return display_id
+        except (httpx.HTTPError, ValueError):
+            continue
+    MODEL_DISPLAY_CACHE[item_id] = None
+    return None
+
+
 async def _build_character_model(client, token, region, appearance, race_name=None):
     """Build Classic viewer input from Forever's transmog-aware appearance API."""
     if not isinstance(appearance, dict):
@@ -300,6 +344,21 @@ async def _build_character_model(client, token, region, appearance, race_name=No
             return None
 
     display_ids = await asyncio.gather(*(resolve_display_id(app_id) for app_id in appearance_ids))
+    # Blizzard's item-appearance catalog does not cover every legacy Forever
+    # item. Wowhead's own item page exposes modelviewer.displayid for those.
+    fallback_semaphore = asyncio.Semaphore(5)
+
+    async def fallback_display_id(item_id):
+        async with fallback_semaphore:
+            return await _wowhead_page_display_id(client, item_id)
+
+    fallback_indexes = [i for i, display_id in enumerate(display_ids) if not display_id]
+    fallback_values = await asyncio.gather(*(
+        fallback_display_id(visible[i]["item_id"]) for i in fallback_indexes
+    ))
+    for index, display_id in zip(fallback_indexes, fallback_values):
+        display_ids[index] = display_id
+
     items = []
     missing = []
     for equipped, display_id in zip(visible, display_ids):
@@ -330,7 +389,7 @@ async def _build_character_model(client, token, region, appearance, race_name=No
         "resolved_item_count": len(items),
         "equipped_visual_item_count": len(visible),
         "missing_display_ids": missing,
-        "source": "Blizzard Forever appearance + item appearance APIs",
+        "source": "Blizzard item appearance APIs + Wowhead modelviewer metadata fallback",
     }
 
 def _numeric_value(value):
