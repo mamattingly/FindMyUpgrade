@@ -1,8 +1,8 @@
 """Dungeon upgrade scoring for WoW: Forever.
 
 Dungeon/boss/item source mappings are derived from AllTheThings' Forever
-database under its MIT license. Item stats are supplied by Blizzard's
-static-forever Game Data API at request time.
+database under its MIT license. Item stats prefer Wowhead Forever tooltips
+(dataEnv=16), with Blizzard/WarcraftDB/Thottbot fallbacks.
 """
 from __future__ import annotations
 
@@ -24,9 +24,9 @@ CATALOG_LICENSE = _CATALOG.get("license", "Unknown")
 # Users can refine them later; they are deliberately not presented as exact
 # theorycraft or as a probability of a drop.
 STAT_WEIGHTS = {
-    "Priest": {"intellect": 1.00, "spell_healing": 1.15, "spell_damage": 0.90,
-               "spirit": 0.72, "mp5": 1.20, "stamina": 0.34,
-               "spell_crit": 0.48, "crit": 0.30, "armor": 0.004},
+    "Priest": {"intellect": 1.25, "spell_healing": 1.20, "spell_damage": 0.90,
+               "spirit": 1.00, "mp5": 1.10, "stamina": 0.30,
+               "spell_crit": 0.75, "crit": 0.55, "armor": 0.004},
     "Mage": {"intellect": 1.00, "spell_damage": 1.20, "spirit": 0.48,
              "stamina": 0.30, "spell_crit": 0.72, "mp5": 0.25, "armor": 0.003},
     "Warlock": {"intellect": 0.90, "spell_damage": 1.20, "stamina": 0.52,
@@ -141,7 +141,7 @@ def item_score(item: dict[str, Any], class_name: str) -> float:
         except (TypeError, ValueError):
             pass
     try:
-        score += float(item.get("weapon_dps") or 0) * (0.35 if class_name in ("Priest", "Mage", "Warlock") else 0.65)
+        score += float(item.get("weapon_dps") or 0) * (0.10 if class_name in ("Priest", "Mage", "Warlock") else 0.65)
     except (TypeError, ValueError):
         pass
     return round(score, 3)
