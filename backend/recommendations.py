@@ -289,7 +289,7 @@ def recommend_dungeons(character: dict[str, Any], gear: list[dict[str, Any]],
     current = _current_scores(gear, class_name, spec)
     ranked = []
     catalog_dungeons = [d for d in DUNGEONS
-        if d.get("bosses") and int(d.get("min_level") or 0) <= level <= int(d.get("max_level") or 0)
+        if int(d.get("min_level") or 0) <= level <= int(d.get("max_level") or 0)
         and (not d.get("faction") or d.get("faction", "").casefold() == faction)]
     for dungeon in catalog_dungeons:
         slot_candidates: dict[str, list[dict[str, Any]]] = {}
@@ -379,30 +379,28 @@ def recommend_dungeons(character: dict[str, Any], gear: list[dict[str, Any]],
         potential_score = round(sum(x["gain"] for x in slot_results), 3)
         expected_score = round(sum(x["expected_gain"] or 0 for x in slot_results), 3) if full_drop_data else None
         rank_score = expected_score if full_drop_data else potential_score
-        if not slot_results:
-            continue
         ranked.append({
             "name": dungeon["name"], "min_level": dungeon["min_level"],
             "max_level": dungeon["max_level"], "score": rank_score,
             "potential_score": potential_score, "expected_score": expected_score,
             "score_label": "Expected upgrade value per full run" if full_drop_data else "Potential upgrade score",
-            "upgrade_slots": len(slot_results), "best_upgrade": slot_results[0],
+            "upgrade_slots": len(slot_results), "best_upgrade": slot_results[0] if slot_results else None,
             "upgrades": slot_results[:6], "possible_upgrade_count": len(possible_upgrades),
             "drop_rate_coverage": coverage,
             "source_url": dungeon.get("source_url"),
             "faction_requirement": dungeon.get("faction"),
             "access_requirement": dungeon.get("access_requirement"),
         })
-    ranked.sort(key=lambda x: (x["score"], x["upgrade_slots"], x["best_upgrade"]["gain"]), reverse=True)
+    ranked.sort(key=lambda x: (x["score"], x["upgrade_slots"], (x["best_upgrade"] or {}).get("gain", 0)), reverse=True)
     if not catalog_dungeons:
         status = "no_dungeon_catalog"
         message = "No sourced dungeon loot catalog is available for this character's current level and faction."
     elif not item_data:
         status = "data_unavailable"
         message = "Forever item data could not be loaded, so no dungeon ranking was calculated."
-    elif not ranked:
+    elif not any(x["upgrade_slots"] for x in ranked):
         status = "no_upgrades_found"
-        message = "No usable dungeon drops in the current-level catalog scored above the equipped gear."
+        message = "No usable dungeon drops in the current-level catalog scored above the equipped gear. Profession farming can still be compared using your logged run yields."
     elif any(x["drop_rate_coverage"] < 1 for x in ranked):
         status = "partial_data"
         message = "Ranked by stat-weighted upgrade potential. Verified drop chances are shown where available; missing chances are not estimated."
@@ -411,7 +409,7 @@ def recommend_dungeons(character: dict[str, Any], gear: list[dict[str, Any]],
         message = "Ranked by expected stat-weighted upgrade value per full dungeon run, using verified drop chances. Run durations are not verified, so this is not an upgrades-per-hour estimate."
     return {
         "status": status, "message": message, "recommended": ranked[0] if ranked else None,
-        "rankings": ranked[:8], "dungeons_checked": len(catalog_dungeons),
+        "rankings": ranked, "dungeons_checked": len(catalog_dungeons),
         "items_evaluated": len(item_data), "scoring": "estimated_class_stat_weights",
         "catalog_source": CATALOG_SOURCE, "catalog_license": CATALOG_LICENSE,
         "item_data_sources": sorted({x.get("data_source", "Unknown") for x in item_data.values()}),

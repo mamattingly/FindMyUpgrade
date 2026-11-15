@@ -150,7 +150,7 @@ export default function App(){
    <section className="recommendation-layout">
     <div className="primary-column">
      <div className="section-heading recommendation-heading"><div><div className="kicker">YOUR BEST MATCH</div><h2>Where to run next</h2></div><span className="live-pill"><i/> Character analysis</span></div>
-     {best&&["ready","partial_data"].includes(rec.status)?<article className="best-card">
+     {best&&(["ready","partial_data"].includes(rec.status)||farmRanking.measured)?<article className="best-card">
       <div className="best-card-top"><span className="recommend-label"><Target size={14}/> TOP DUNGEON</span><span className="level-pill">Level {best.min_level}–{best.max_level}</span></div>
       <h3>{best.name}</h3><p className="best-summary">{best.upgrade_slots} potential gear slot upgrades for {current.name}. {best.best_upgrade?.name?"Best target: "+best.best_upgrade.name+".":""} {best.sampleCount?`Based on ${best.sampleCount} logged run(s), averaging ${best.avgMinutes.toFixed(1)} minutes.`:"No personal run data yet; showing the gear-first baseline."}</p>
       <div className="best-stats"><div><b>{best.upgrade_slots}</b><span>Upgrade slots</span></div><div><b>{best.sampleCount?best.avgMinutes.toFixed(0)+"m":"—"}</b><span>Avg clear time</span></div><div><b>{goals.tailoring&&best.sampleCount?best.clothPerHour.toFixed(1):goals.enchanting&&best.sampleCount?best.disenchantablesPerHour.toFixed(1):rec.rankings?.length||1}</b><span>{goals.tailoring&&best.sampleCount?"Relevant cloth/hr":goals.enchanting&&best.sampleCount?"Eligible items/hr":"Dungeons compared"}</span></div></div>

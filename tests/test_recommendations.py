@@ -103,7 +103,8 @@ def test_two_hander_must_replace_both_mainhand_and_offhand(monkeypatch):
     }
     result = rec.recommend_dungeons(character, equipped, item_data)
     assert result["status"] == "no_upgrades_found"
-    assert result["recommended"] is None
+    assert result["recommended"]["upgrade_slots"] == 0
+    assert result["recommended"]["best_upgrade"] is None
 
 
 
@@ -150,3 +151,16 @@ def test_tank_spec_includes_defensive_stats():
     assert weights["defense"] > 0
     assert weights["dodge"] > 0
     assert weights["spell_damage"] == 0
+
+
+def test_profession_only_dungeons_remain_available_for_run_logging(monkeypatch):
+    monkeypatch.setattr(rec, "DUNGEONS", [
+        {"name": f"Test Dungeon {i}", "min_level": 30, "max_level": 40,
+         "faction": None, "source_url": "https://example.invalid/dungeon", "bosses": []}
+        for i in range(10)
+    ])
+    character = {"level": 34, "class": "Priest", "faction": "Alliance"}
+    result = rec.recommend_dungeons(character, [], {9999: {"name": "unused"}})
+    assert result["status"] == "no_upgrades_found"
+    assert len(result["rankings"]) == 10
+    assert all(d["upgrade_slots"] == 0 and d["best_upgrade"] is None for d in result["rankings"])
