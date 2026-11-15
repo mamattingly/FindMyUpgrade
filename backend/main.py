@@ -8,13 +8,15 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from typing import Literal
+from backend.recommendations import DUNGEONS, recommend_dungeons
 
-app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.4.4")
+app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.5.0")
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "frontend" / "dist"
 REGION_LOCALES = {"us": "en_US", "eu": "en_GB", "kr": "ko_KR", "tw": "zh_TW"}
 REGION_WEB_LOCALES = {"us": "en-us", "eu": "en-gb", "kr": "ko-kr", "tw": "zh-tw"}
 TOKEN_CACHE = {"access_token": None, "expires_at": 0}
+ITEM_CACHE = {}
 
 class ScanRequest(BaseModel):
     region: Literal["us", "eu", "kr", "tw"] = "us"
@@ -22,7 +24,7 @@ class ScanRequest(BaseModel):
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "app": "wow-forever-dungeon-advisor"}
+    return {"status": "ok", "app": "wow-forever-dungeon-advisor", "app_version": app.version}
 
 def _script_json(page: str, pattern: str):
     match = re.search(pattern, page, re.S | re.I)
@@ -107,15 +109,33 @@ async def _profile_api(client, token, region, slug, endpoint):
 def _gear_from_api(data):
     result = []
     for entry in (data or {}).get("equipped_items", []):
-        if not isinstance(entry, dict): continue
+        if not isinstance(entry, dict):
+            continue
         item, slot = entry.get("item") or {}, entry.get("slot") or {}
         level = entry.get("level")
-        result.append({"slot": slot.get("name") or slot.get("type", {}).get("name") or "Unknown slot",
+        raw_stats = entry.get("stats") or []
+        stats = []
+        for stat in raw_stats:
+            if not isinstance(stat, dict):
+                continue
+            stat_type = stat.get("type") or {}
+            stat_name = stat_type.get("name") if isinstance(stat_type, dict) else None
+            if stat_name and stat.get("value") is not None:
+                stats.append({"name": stat_name, "value": stat.get("value")})
+        armor = entry.get("armor") or {}
+        weapon = entry.get("weapon") or {}
+        dps = weapon.get("dps") or {}
+        result.append({
+            "slot": slot.get("name") or slot.get("type", {}).get("name") or "Unknown slot",
             # Forever returns the display name on the equipped_items entry;
             # entry.item contains only the item id and resource key.
             "name": entry.get("name") or item.get("name") or "Unknown item",
             "item_level": level.get("value") if isinstance(level, dict) else level,
-            "quality": (entry.get("quality") or {}).get("name"), "id": item.get("id")})
+            "quality": (entry.get("quality") or {}).get("name"), "id": item.get("id"),
+            "stats": stats,
+            "armor": armor.get("value") if isinstance(armor, dict) else armor,
+            "weapon_dps": dps.get("value") if isinstance(dps, dict) else dps,
+        })
     return result
 
 def _spec_from_api(data):
@@ -159,6 +179,94 @@ def _spec_from_api(data):
                 return details["name"]
     return "Unknown"
 
+
+async def _static_item_data(client, token, region, item_id, semaphore):
+    cache_key = (region, int(item_id))
+    if cache_key in ITEM_CACHE:
+        return ITEM_CACHE[cache_key]
+    async with semaphore:
+        try:
+            url = f"https://{region}.api.blizzard.com/data/wow/item/{int(item_id)}"
+            response = await client.get(url,
+                params={"namespace": f"static-forever-{region}", "locale": REGION_LOCALES[region]},
+                headers={"Authorization": f"Bearer {token}"}, timeout=8)
+            if response.status_code != 200:
+                ITEM_CACHE[cache_key] = None
+                return None
+            data = response.json()
+            preview = data.get("preview_item") or {}
+            raw_stats = preview.get("stats") or []
+            stats, stats_display = [], []
+            for stat in raw_stats:
+                if not isinstance(stat, dict):
+                    continue
+                stat_type = stat.get("type") or {}
+                stat_name = stat_type.get("name") if isinstance(stat_type, dict) else None
+                if stat_name and stat.get("value") is not None:
+                    stats.append({"name": stat_name, "value": stat.get("value")})
+                display = (stat.get("display") or {}).get("display_string")
+                if display:
+                    stats_display.append(display)
+            item_level = (preview.get("level") or {}).get("value")
+            if item_level is None:
+                raw_level = data.get("level")
+                item_level = raw_level.get("value") if isinstance(raw_level, dict) else raw_level
+            armor = preview.get("armor") or data.get("armor") or {}
+            weapon = preview.get("weapon") or data.get("weapon") or {}
+            dps = weapon.get("dps") or {}
+            result = {
+                "id": int(item_id), "name": data.get("name"),
+                "required_level": data.get("required_level"),
+                "inventory_type": (data.get("inventory_type") or {}).get("name"),
+                "item_class": (data.get("item_class") or {}).get("name"),
+                "item_subclass": (data.get("item_subclass") or {}).get("name"),
+                "item_level": item_level, "stats": stats, "stats_display": stats_display,
+                "armor": armor.get("value") if isinstance(armor, dict) else armor,
+                "weapon_dps": dps.get("value") if isinstance(dps, dict) else dps,
+            }
+            ITEM_CACHE[cache_key] = result
+            return result
+        except (httpx.HTTPError, ValueError, TypeError, KeyError):
+            ITEM_CACHE[cache_key] = None
+            return None
+
+async def _build_dungeon_recommendations(client, token, region, character, gear):
+    level = int(character.get("level") or 0)
+    faction = (character.get("faction") or "").casefold()
+    current_dungeons = [
+        dungeon for dungeon in DUNGEONS
+        if dungeon.get("bosses")
+        and int(dungeon.get("min_level") or 0) <= level <= int(dungeon.get("max_level") or 0)
+        and (not dungeon.get("faction") or dungeon.get("faction", "").casefold() == faction)
+    ]
+    source_ids = []
+    seen = set()
+    for dungeon in current_dungeons:
+        for boss in dungeon.get("bosses", []):
+            for item_id in boss.get("items", []):
+                item_id = int(item_id)
+                if item_id not in seen:
+                    seen.add(item_id)
+                    source_ids.append(item_id)
+    # Avoid turning a single character lookup into hundreds of upstream calls.
+    requested_ids = source_ids[:160]
+    semaphore = asyncio.Semaphore(12)
+    fetched = await asyncio.gather(*[
+        _static_item_data(client, token, region, item_id, semaphore)
+        for item_id in requested_ids
+    ], return_exceptions=True)
+    item_data = {}
+    for item_id, result in zip(requested_ids, fetched):
+        if isinstance(result, dict):
+            item_data[item_id] = result
+    recommendation = recommend_dungeons(character, gear, item_data)
+    recommendation["items_requested"] = len(requested_ids)
+    recommendation["item_data_coverage"] = (
+        round(len(item_data) / len(requested_ids), 2) if requested_ids else 0
+    )
+    recommendation["catalog_truncated"] = len(source_ids) > len(requested_ids)
+    return recommendation
+
 def _professions_from_api(data):
     if not isinstance(data, dict): return []
     found = []
@@ -200,7 +308,7 @@ async def scan(req: ScanRequest):
         faction_obj = character.get("faction") or {}
         faction = faction_obj.get("name") or faction_obj.get("slug") or faction_obj.get("type")
         ruleset = character.get("ruleset") or {}
-        gear, spec, professions, api_status = [], "Unknown", [], "credentials_not_configured"
+        gear, spec, professions, api_status = [], "Unknown", [], "credentials_not_configured"\n        dungeon_recommendations = {"status": "credentials_not_configured", "rankings": [], "recommended": None, "message": "Configure Blizzard API credentials to compare dungeon loot against equipped gear."}
         token = await _blizzard_token(client)
         if token:
             equipment_data, spec_data, profession_data = await asyncio.gather(
@@ -208,7 +316,7 @@ async def scan(req: ScanRequest):
                 _profile_api(client, token, req.region, profile_slug, "specializations"),
                 _profile_api(client, token, req.region, profile_slug, "professions"))
             gear, spec, professions = _gear_from_api(equipment_data), _spec_from_api(spec_data), _professions_from_api(profession_data)
-            api_status = "connected" if any([equipment_data, spec_data, profession_data]) else "api_data_unavailable"
+            api_status = "connected" if any([equipment_data, spec_data, profession_data]) else "api_data_unavailable"\n            if equipment_data and char_class and character.get("level"):\n                dungeon_recommendations = await _build_dungeon_recommendations(client, token, req.region, {\n                    "level": character.get("level"), "class": char_class, "spec": spec,\n                    "faction": faction.title() if isinstance(faction, str) else "Unknown",\n                }, gear)
         soup = BeautifulSoup(profile_response.text, "html.parser")
         return {"source_url": str(profile_response.url),
             "page_title": soup.title.get_text(" ", strip=True) if soup.title else "WoW Forever Armory",
@@ -217,8 +325,9 @@ async def scan(req: ScanRequest):
                 "faction": faction.title() if isinstance(faction, str) else "Unknown",
                 "ruleset": ruleset.get("name") if isinstance(ruleset, dict) else None, "spec": spec},
             "equipped_gear": gear, "professions": professions, "api_status": api_status,
+            "dungeon_recommendations": dungeon_recommendations,
             "scan_status": "profile_found" if char_class and character.get("level") else "profile_found_partial",
-            "message": "Character verified. Gear, specialization and profession skills were retrieved from Blizzard's profile API." if api_status == "connected" else "Character verified. Add Blizzard API credentials in Render to enable automatic gear, specialization and profession retrieval. You can track profession skill manually in this build."}
+            "message": "Character verified. Gear, specialization and profession skills were retrieved from Blizzard's profile API." if api_status == "connected" else "Character verified, but automatic gear and dungeon analysis could not complete. Check the API connection status."}
 
 @app.get("/api/diagnostics")
 async def diagnostics(region: Literal["us", "eu", "kr", "tw"] = "us", name: str = "Faith Heal"):
@@ -326,7 +435,19 @@ async def item_diagnostics(region: Literal["us", "eu", "kr", "tw"] = "us", ids: 
 
 @app.post("/api/analyze")
 async def analyze(payload: dict):
-    return {"status": "insufficient_data", "rankings": [], "message": "Verified equipped gear and a sourced dungeon loot/drop-rate dataset are required before calculating meaningful upgrades per hour."}
+    character = payload.get("character") or {}
+    gear = payload.get("equipped_gear") or payload.get("gear") or []
+    region = str(character.get("region") or payload.get("region") or "us").casefold()
+    if region not in REGION_LOCALES:
+        raise HTTPException(400, "Unsupported region.")
+    if not character.get("level") or not character.get("class") or not isinstance(gear, list):
+        raise HTTPException(400, "Character level, class and equipped gear are required.")
+    async with httpx.AsyncClient(timeout=25, follow_redirects=True) as client:
+        token = await _blizzard_token(client)
+        if not token:
+            return {"status": "credentials_not_configured", "rankings": [], "recommended": None,
+                    "message": "Configure Blizzard API credentials before running dungeon analysis."}
+        return await _build_dungeon_recommendations(client, token, region, character, gear)
 
 if DIST.exists():
     app.mount("/assets", StaticFiles(directory=DIST / "assets"), name="assets")
