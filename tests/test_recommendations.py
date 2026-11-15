@@ -1,5 +1,5 @@
 from backend import recommendations as rec
-from backend.main import _parse_wowhead_item_page, _spec_from_api, _build_character_model, _parse_wowhead_model_display_id
+from backend.main import _parse_wowhead_item_page, _spec_from_api, _build_character_model, _parse_wowhead_model_display_id, _modelviewer_asset_candidates
 
 
 def test_normalise_stats_from_blizzard_shape():
@@ -339,3 +339,16 @@ def test_wago_db2_item_appearance_to_display_chain():
     }
     assert modified_count == 5
     assert appearance_count == 5
+
+
+def test_modelviewer_asset_fallback_candidates_for_forever():
+    live = _modelviewer_asset_candidates("live", "meta/armor/21/5554.json")
+    assert live == [
+        "https://wow.zamimg.com/modelviewer/live/meta/armor/21/5554.json",
+        "https://wow.zamimg.com/modelviewer/classic/meta/armor/21/5554.json",
+        "https://wow.zamimg.com/modelviewer/classic/meta/item/5554.json",
+    ]
+    robe = _modelviewer_asset_candidates("live", "meta/armor/5/8857.json")
+    assert robe[-1].endswith("/classic/meta/armor/20/8857.json")
+    classic = _modelviewer_asset_candidates("classic", "meta/item/5554.json")
+    assert classic == ["https://wow.zamimg.com/modelviewer/classic/meta/item/5554.json"]
