@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from typing import Literal
 from backend.recommendations import DUNGEONS, recommend_dungeons
 
-app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.9.1")
+app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.9.2")
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "frontend" / "dist"
 REGION_LOCALES = {"us": "en_US", "eu": "en_GB", "kr": "ko_KR", "tw": "zh_TW"}
@@ -1240,11 +1240,11 @@ def _modelviewer_asset_candidates(viewer_flavor, clean):
         # A Forever character is based on Classic-era models; old item display
         # records and character meshes may be absent from Wowhead's live pack.
         candidates.append(f"https://wow.zamimg.com/modelviewer/classic/{clean}")
-        match = re.fullmatch(r"meta/armor/(21|22)/(\\d+)\\.json", clean)
+        match = re.fullmatch(r"meta/armor/(21|22)/(\d+)\.json", clean)
         if match:
             candidates.append(
                 f"https://wow.zamimg.com/modelviewer/classic/meta/item/{match.group(2)}.json")
-        match = re.fullmatch(r"meta/armor/5/(\\d+)\\.json", clean)
+        match = re.fullmatch(r"meta/armor/5/(\d+)\.json", clean)
         if match:
             candidates.append(
                 f"https://wow.zamimg.com/modelviewer/classic/meta/armor/20/{match.group(1)}.json")
