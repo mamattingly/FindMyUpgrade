@@ -38,81 +38,126 @@ function getViewerCustomization(modelData){
  return values;
 }
 
-export default function CharacterModel({modelData,armoryRenderUrl,name}){
+export default function CharacterModel({modelData,armoryRenderUrl,name,previewItem=null}){
  const id="wow-armory-model-"+useId().replace(/[^a-zA-Z0-9_-]/g,"");
  const [status,setStatus]=useState("loading");
  const [detail,setDetail]=useState("");
  const [loadedCount,setLoadedCount]=useState(0);
- const [stable,setStable]=useState(false);
  const [showFallback,setShowFallback]=useState(true);
+ const previewRef=useRef(previewItem);
+ const previewActive=useRef(false);
+ const retryRef=useRef(null);
+ useEffect(()=>{previewRef.current=previewItem;},[previewItem]);
  useEffect(()=>{
-  let disposed=false,viewer=null,stabilityTimer=null,observer=null,contextLostHandler=null;
+  let disposed=false,viewer=null,observer=null,resizeObserver=null,mutationObserver=null;
+  let booting=false,attempt=0,stabilityTimer=null,retryTimer=null,contextCanvas=null;
   const host=document.getElementById(id);
   if(!host)return;
   host.innerHTML="";
   setShowFallback(true);
+  const character={
+   race:Number(modelData?.race),gender:Number(modelData?.gender),
+   ...getViewerCustomization(modelData||{}),
+   items:(modelData?.items||[]).map(([slot,displayId])=>[slot===16?21:slot===17?22:Number(slot),Number(displayId)])
+  };
+  function refreshCanvas(){
+   if(disposed||!viewer)return;
+   const canvas=host.querySelector("canvas");
+   if(canvas){canvas.style.display="block";canvas.style.width="100%";canvas.style.height="100%";}
+   try{viewer.setDistance?.(1.15);}catch{}
+   window.dispatchEvent(new Event("resize"));
+  }
+  function scheduleRecovery(reason){
+   if(disposed||booting)return;
+   setStatus("recovering");setDetail(reason||"Restoring the 3D view…");setShowFallback(true);
+   clearTimeout(retryTimer);
+   retryTimer=setTimeout(()=>{if(!disposed&&host.isConnected&&host.getBoundingClientRect().width>0)boot();},250);
+  }
   async function boot(){
-   if(!modelData||!Number(modelData.race)||!Number.isInteger(Number(modelData.gender))){
+   if(disposed||booting)return;
+   if(!modelData||!character.race||!Number.isInteger(character.gender)){
     setStatus("missing");setDetail("Refresh character data to retrieve the Armory appearance.");return;
    }
    if(!Array.isArray(modelData.items)||!modelData.items.length){
     setStatus("error");setDetail("The Armory profile did not provide usable equipped-item display data.");return;
    }
-   setStatus("loading");setDetail("Loading the character's actual appearance and equipped gear…");
+   booting=true;attempt++;
+   clearTimeout(stabilityTimer);
+   setStatus("loading");setDetail("Loading character appearance…");
    try{
+    if(viewer){try{viewer.destroy?.();}catch{}viewer=null;}
+    host.innerHTML="";
     window.CONTENT_PATH=window.location.origin+"/api/modelviewer/classic/";
     window.WOTLK_TO_RETAIL_DISPLAY_ID_API=undefined;
     const jqueryModule=await import("jquery");
+    if(disposed)return;
     window.jQuery=window.$=jqueryModule.default;
     await loadScript(window.CONTENT_PATH+"viewer/viewer.min.js");
+    if(disposed)return;
     const library=await import("wow-model-viewer");
-    // The Classic model metadata uses its own customization and equipment tables.
-    window.WOTLK_TO_RETAIL_DISPLAY_ID_API=undefined;
-    const toViewerSlot=(slot)=>slot===16?21:slot===17?22:slot;
-    const character={
-     race:Number(modelData.race),
-     gender:Number(modelData.gender),
-     ...getViewerCustomization(modelData),
-     // wow-model-viewer reserves 21/22 for main-hand/off-hand display slots.
-     items:modelData.items.map(([slot,displayId])=>[toViewerSlot(Number(slot)),Number(displayId)])
-    };
+    if(disposed)return;
     viewer=await library.generateModels(1.45,"#"+id,character,"classic");
-    viewer?.setDistance?.(1.15);
     if(disposed){viewer?.destroy?.();return;}
-    // The library's public API does not expose renderer.actors. The old
-    // check inspected an undocumented internal field and rejected valid models.
-    // Confirm the documented model handle and an actual canvas instead.
-    if(!viewer||typeof viewer.setDistance!=="function"||!host.querySelector("canvas")){
-     viewer?.destroy?.();
-     throw new Error("The 3D viewer did not produce a renderable character. The official Armory render is shown instead.");
-    }
+    if(!viewer||typeof viewer.setDistance!=="function"||!host.querySelector("canvas"))
+     throw new Error("The viewer did not create a character canvas.");
+    contextCanvas=host.querySelector("canvas");
+    contextCanvas.addEventListener("webglcontextlost",onContextLost);
+    contextCanvas.addEventListener("webglcontextrestored",onContextRestored);
     setLoadedCount(modelData.items.length);
-    // Keep the official Armory render visible until the WebGL canvas has
-    // remained mounted for a few seconds. Failed loads can briefly create
-    // a canvas before tearing it down.
-    const canvas=host.querySelector("canvas");
-    contextLostHandler=(event)=>{event.preventDefault();if(!disposed){setStatus("error");setDetail("The 3D viewer lost its graphics context. Showing the official Armory render.");setShowFallback(true);}};
-    canvas.addEventListener("webglcontextlost",contextLostHandler,{once:true});
-    observer=new MutationObserver(()=>{
-     if(!disposed&&!host.querySelector("canvas")){
-      clearTimeout(stabilityTimer);
-      setStatus("error");setDetail("The 3D model stopped rendering. Showing the official Armory render.");setShowFallback(true);
-     }
-    });
-    observer.observe(host,{childList:true,subtree:true});
     stabilityTimer=setTimeout(()=>{
      if(disposed)return;
-     if(host.querySelector("canvas")){setStatus("ready");setDetail("");setShowFallback(false);}
-     else{setStatus("error");setDetail("The 3D model did not remain visible. Showing the official Armory render.");setShowFallback(true);}
-    },3500);
+     if(host.querySelector("canvas")){setStatus("ready");setDetail("");setShowFallback(false);refreshCanvas();}
+     else scheduleRecovery("The model view was interrupted. Rebuilding it…");
+    },900);
    }catch(error){
-    if(disposed)return;
-    setStatus("error");
-    setDetail(error?.message||"The Classic 3D character model could not be loaded.");
+    if(!disposed){
+     setStatus("error");
+     setDetail((error?.message||"The 3D character could not be loaded.")+" The official Armory image remains available.");
+     setShowFallback(true);
+    }
+   }finally{booting=false;}
+  }
+  function onContextLost(event){
+   event.preventDefault();
+   if(!disposed){setStatus("recovering");setDetail("Graphics paused; restoring the model…");setShowFallback(true);}
+  }
+  function onContextRestored(){
+   if(disposed)return;
+   refreshCanvas();setStatus("ready");setDetail("");setShowFallback(false);
+  }
+  function onVisibility(){
+   if(document.visibilityState==="visible"&&host.getBoundingClientRect().width>0){
+    if(host.querySelector("canvas"))refreshCanvas();
+    else scheduleRecovery("Restoring the character after returning to the page…");
    }
   }
+  document.addEventListener("visibilitychange",onVisibility);
+  observer=new IntersectionObserver(entries=>{
+   if(entries.some(entry=>entry.isIntersecting)){
+    if(!host.querySelector("canvas"))scheduleRecovery("Restoring the 3D model…");
+    else refreshCanvas();
+   }
+  },{rootMargin:"180px"});
+  observer.observe(host);
+  resizeObserver=new ResizeObserver(()=>{if(host.getBoundingClientRect().width>0)refreshCanvas();});
+  resizeObserver.observe(host);
+  mutationObserver=new MutationObserver(()=>{
+   if(!disposed&&!booting&&status==="ready"&&!host.querySelector("canvas"))
+    scheduleRecovery("The model renderer stopped. Rebuilding the 3D view…");
+  });
+  mutationObserver.observe(host,{childList:true,subtree:true});
+  retryRef.current=()=>scheduleRecovery("Rebuilding the character model…");
   boot();
-  return ()=>{disposed=true;clearTimeout(stabilityTimer);observer?.disconnect();try{const canvas=host.querySelector("canvas");if(canvas&&contextLostHandler)canvas.removeEventListener("webglcontextlost",contextLostHandler);viewer?.destroy?.();}catch{}host.innerHTML="";};
+  return ()=>{
+   disposed=true;clearTimeout(stabilityTimer);clearTimeout(retryTimer);
+   observer?.disconnect();resizeObserver?.disconnect();mutationObserver?.disconnect();
+   document.removeEventListener("visibilitychange",onVisibility);
+   try{
+    if(contextCanvas){contextCanvas.removeEventListener("webglcontextlost",onContextLost);contextCanvas.removeEventListener("webglcontextrestored",onContextRestored);}
+    viewer?.destroy?.();
+   }catch{}
+   host.innerHTML="";
+  };
  },[id,modelData]);
  return <div className="character-model-canvas">
   <div id={id} className="wow-armory-viewer" aria-label={name?name+" 3D Armory character model":"3D Armory character model"}/>
