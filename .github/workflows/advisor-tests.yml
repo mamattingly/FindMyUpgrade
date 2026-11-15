@@ -47,7 +47,7 @@ jobs:
       - name: Wait for this version to reach Render
         env:
           APP_URL: https://wow-forever-dungeon-advisor-1zlg.onrender.com
-          EXPECTED_VERSION: "0.8.8"
+          EXPECTED_VERSION: "0.9.0"
         run: |
           python - <<'PY'
           import json, os, time, urllib.request
@@ -167,6 +167,7 @@ jobs:
               "missing_display_ids": model.get("missing_display_ids"),
               "resolved_appearances": model.get("resolved_appearances"),
               "display_fallback_debug": model.get("display_fallback_debug"),
+              "wago_db2": model.get("wago_db2"),
               "armory_render_url": payload.get("armory_render_url"),
           }, indent=2))
           if not model.get("race") or model.get("gender") not in (0, 1):
