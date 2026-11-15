@@ -265,12 +265,32 @@ def recommend_dungeons(character: dict[str, Any], gear: list[dict[str, Any]],
                 if gain <= 0.05:
                     continue
                 drop_source = item.get("drop_source_name")
-                source_matches = (
-                    not drop_source
-                    or _clean_source_name(drop_source) in _clean_source_name(boss_name)
-                    or _clean_source_name(boss_name) in _clean_source_name(drop_source)
-                )
-                drop_chance = item.get("drop_chance") if source_matches else None
+                drop_chance = None
+                observed = encounters = None
+                drop_sources = item.get("drop_sources") or []
+                if drop_sources:
+                    for source in drop_sources:
+                        if not isinstance(source, dict):
+                            continue
+                        source_id = source.get("npc_id") or source.get("id")
+                        source_name = source.get("name") or source.get("npc_name")
+                        id_matches = source_id is not None and boss.get("npc_id") is not None and int(source_id) == int(boss.get("npc_id"))
+                        name_matches = bool(source_name and (
+                            _clean_source_name(source_name) in _clean_source_name(boss_name)
+                            or _clean_source_name(boss_name) in _clean_source_name(source_name)
+                        ))
+                        if id_matches or name_matches:
+                            drop_source = source_name or boss_name
+                            drop_chance = source.get("drop_chance", source.get("dropChance"))
+                            observed, encounters = source.get("observed"), source.get("encounters")
+                            break
+                else:
+                    source_matches = (
+                        not drop_source
+                        or _clean_source_name(drop_source) in _clean_source_name(boss_name)
+                        or _clean_source_name(boss_name) in _clean_source_name(drop_source)
+                    )
+                    drop_chance = item.get("drop_chance") if source_matches else None
                 candidate = {
                     "slot": key, "item_id": int(item_id), "name": item.get("name"),
                     "item_level": item.get("item_level"), "required_level": item.get("required_level"),
@@ -278,7 +298,7 @@ def recommend_dungeons(character: dict[str, Any], gear: list[dict[str, Any]],
                     "item_url": item.get("data_url") or f"https://www.wowhead.com/forever/item={int(item_id)}",
                     "item_data_source": item.get("data_source") or "Unknown",
                     "drop_chance": drop_chance,
-                    "drop_rate_verified": drop_chance is not None,
+                    "drop_rate_verified": drop_chance is not None, "drop_observed": observed, "drop_encounters": encounters,
                     "stats": item.get("stats_display") or [],
                 }
                 possible_upgrades.append(candidate)
