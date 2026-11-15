@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from typing import Literal
 
-app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.4.0")
+app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.4.1")
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "frontend" / "dist"
 REGION_LOCALES = {"us": "en_US", "eu": "en_GB", "kr": "ko_KR", "tw": "zh_TW"}
@@ -117,9 +117,44 @@ def _gear_from_api(data):
     return result
 
 def _spec_from_api(data):
-    for spec in (data or {}).get("specializations", []):
-        if spec.get("active"):
-            return (spec.get("specialization") or {}).get("name") or "Unknown"
+    if not isinstance(data, dict):
+        return "Unknown"
+
+    # Forever's character endpoint returns specialization_groups rather
+    # than the older/retail-style top-level specializations array.
+    groups = data.get("specialization_groups") or []
+    for group in groups:
+        if not isinstance(group, dict):
+            continue
+        if group.get("is_active") or group.get("active"):
+            specs = group.get("specializations") or []
+            for spec in specs:
+                if not isinstance(spec, dict):
+                    continue
+                details = spec.get("specialization") or spec
+                name = details.get("name") if isinstance(details, dict) else None
+                if name:
+                    return name
+    # Fallback for API variants where the active marker is on the spec.
+    for group in groups:
+        if not isinstance(group, dict):
+            continue
+        for spec in group.get("specializations") or []:
+            if not isinstance(spec, dict):
+                continue
+            if spec.get("is_active") or spec.get("active"):
+                details = spec.get("specialization") or spec
+                if isinstance(details, dict) and details.get("name"):
+                    return details["name"]
+
+    # Preserve compatibility with responses using a flat specialization list.
+    for spec in data.get("specializations") or []:
+        if not isinstance(spec, dict):
+            continue
+        if spec.get("is_active") or spec.get("active"):
+            details = spec.get("specialization") or spec
+            if isinstance(details, dict) and details.get("name"):
+                return details["name"]
     return "Unknown"
 
 def _professions_from_api(data):
@@ -205,8 +240,25 @@ async def diagnostics(region: Literal["us", "eu", "kr", "tw"] = "us", name: str 
                 items = payload.get("equipped_items")
                 result["equipment_item_count"] = len(items) if isinstance(items, list) else None
             elif endpoint == "specializations" and isinstance(payload, dict):
-                specs = payload.get("specializations")
-                result["specialization_count"] = len(specs) if isinstance(specs, list) else None
+                groups = payload.get("specialization_groups")
+                flat_specs = payload.get("specializations")
+                result["specialization_group_count"] = len(groups) if isinstance(groups, list) else None
+                result["specialization_count"] = (
+                    sum(len(g.get("specializations") or []) for g in groups if isinstance(g, dict))
+                    if isinstance(groups, list) else
+                    len(flat_specs) if isinstance(flat_specs, list) else None
+                )
+                result["active_specialization_groups"] = (
+                    sum(1 for g in groups if isinstance(g, dict) and (g.get("is_active") or g.get("active")))
+                    if isinstance(groups, list) else None
+                )
+                result["specialization_candidates"] = [
+                    (s.get("specialization") or s).get("name")
+                    for g in (groups or []) if isinstance(g, dict)
+                    for s in (g.get("specializations") or []) if isinstance(s, dict)
+                    and isinstance((s.get("specialization") or s), dict)
+                    and (s.get("specialization") or s).get("name")
+                ][:8]
             elif endpoint == "professions" and isinstance(payload, dict):
                 result["profession_groups"] = [k for k in ("primaries", "secondaries") if isinstance(payload.get(k), list)]
         return result
