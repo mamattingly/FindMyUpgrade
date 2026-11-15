@@ -239,7 +239,7 @@ def recommend_dungeons(character: dict[str, Any], gear: list[dict[str, Any]],
             "max_level": dungeon["max_level"], "score": total,
             "upgrade_slots": len(upgrades), "best_upgrade": upgrades[0],
             "upgrades": upgrades[:6], "source_url": dungeon.get("source_url"),
-            "faction_requirement": dungeon.get("faction"),
+            "faction_requirement": dungeon.get("faction"),\n            "access_requirement": dungeon.get("access_requirement"),
         })
     ranked.sort(key=lambda x: (x["score"], x["upgrade_slots"], x["best_upgrade"]["gain"]), reverse=True)
     if not item_data:
