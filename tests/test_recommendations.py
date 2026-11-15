@@ -104,3 +104,49 @@ def test_two_hander_must_replace_both_mainhand_and_offhand(monkeypatch):
     result = rec.recommend_dungeons(character, equipped, item_data)
     assert result["status"] == "no_upgrades_found"
     assert result["recommended"] is None
+
+
+
+def test_restoration_shaman_values_healing_and_hides_spell_damage():
+    item = {"stats": [
+        {"name": "Intellect", "value": 8},
+        {"name": "Spell Healing", "value": 14},
+        {"name": "Spell Damage", "value": 20},
+        {"name": "Spirit", "value": 6},
+    ]}
+    assert rec.item_score(item, "Shaman", "Restoration") > rec.item_score(
+        {"stats": [{"name": "Spell Damage", "value": 100}]}, "Shaman", "Restoration")
+    assert rec.relevant_item_stats(item, "Shaman", "Restoration") == [
+        "+8 Intellect", "+14 Spell Healing", "+6 Spirit"
+    ]
+
+
+def test_shadow_priest_displays_damage_not_healing():
+    item = {"stats": [
+        {"name": "Intellect", "value": 8},
+        {"name": "Spell Healing", "value": 14},
+        {"name": "Spell Damage", "value": 20},
+    ]}
+    assert rec.relevant_item_stats(item, "Priest", "Shadow") == [
+        "+8 Intellect", "+20 Spell Damage"
+    ]
+
+
+def test_melee_class_hides_spell_stats_and_keeps_attack_stats():
+    item = {"stats": [
+        {"name": "Agility", "value": 10},
+        {"name": "Attack Power", "value": 12},
+        {"name": "Spell Damage", "value": 50},
+        {"name": "Spell Healing", "value": 50},
+        {"name": "Hit", "value": 4},
+    ]}
+    assert rec.relevant_item_stats(item, "Rogue", "Combat") == [
+        "+10 Agility", "+12 Attack Power", "+4 Hit"
+    ]
+
+
+def test_tank_spec_includes_defensive_stats():
+    weights = rec.stat_weights("Warrior", "Protection")
+    assert weights["defense"] > 0
+    assert weights["dodge"] > 0
+    assert weights["spell_damage"] == 0
