@@ -103,7 +103,8 @@ def test_two_hander_must_replace_both_mainhand_and_offhand(monkeypatch):
     }
     result = rec.recommend_dungeons(character, equipped, item_data)
     assert result["status"] == "no_upgrades_found"
-    assert result["recommended"] is None
+    assert result["recommended"]["upgrade_slots"] == 0
+    assert result["recommended"]["best_upgrade"] is None
 
 
 
