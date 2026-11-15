@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from typing import Literal
 
-app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.4.1")
+app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.4.2")
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "frontend" / "dist"
 REGION_LOCALES = {"us": "en_US", "eu": "en_GB", "kr": "ko_KR", "tw": "zh_TW"}
@@ -239,6 +239,17 @@ async def diagnostics(region: Literal["us", "eu", "kr", "tw"] = "us", name: str 
             if endpoint == "equipment" and isinstance(payload, dict):
                 items = payload.get("equipped_items")
                 result["equipment_item_count"] = len(items) if isinstance(items, list) else None
+                result["equipment_item_samples"] = [
+                    {
+                        "entry_keys": sorted(entry.keys()) if isinstance(entry, dict) else [],
+                        "entry_name": entry.get("name") if isinstance(entry, dict) else None,
+                        "item_type": type(entry.get("item")).__name__ if isinstance(entry, dict) else None,
+                        "item_keys": sorted((entry.get("item") or {}).keys()) if isinstance(entry, dict) and isinstance(entry.get("item"), dict) else [],
+                        "item_name": (entry.get("item") or {}).get("name") if isinstance(entry, dict) and isinstance(entry.get("item"), dict) else None,
+                        "item_id": (entry.get("item") or {}).get("id") if isinstance(entry, dict) and isinstance(entry.get("item"), dict) else None,
+                    }
+                    for entry in (items or [])[:3]
+                ]
             elif endpoint == "specializations" and isinstance(payload, dict):
                 groups = payload.get("specialization_groups")
                 flat_specs = payload.get("specializations")
