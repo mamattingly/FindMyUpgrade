@@ -112,7 +112,7 @@ export function buildWmvCharacterXml(modelData, characterClass = "") {
   }
 
   const genderDirectory = sex === 0 ? "Male" : "Female";
-  const modelPath = ["Character", raceDirectory, genderDirectory, `${raceDirectory}${genderDirectory}.m2`].join("\\\\");
+  const modelPath = ["Character", raceDirectory, genderDirectory, `${raceDirectory}${genderDirectory}.m2`].join("\\");
   const eyeGlowType = Number(modelData.playable_class_id) === 6 ? 2 : 1;
   const customizationXml = customizations.map((entry) =>
     `      <customization id="${positiveInteger(entry.option_id)}" value="${positiveInteger(entry.choice_id)}"/>`
