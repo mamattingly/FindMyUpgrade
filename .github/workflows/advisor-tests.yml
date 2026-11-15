@@ -47,7 +47,7 @@ jobs:
       - name: Wait for this version to reach Render
         env:
           APP_URL: https://wow-forever-dungeon-advisor-1zlg.onrender.com
-          EXPECTED_VERSION: "0.6.6"
+          EXPECTED_VERSION: "0.6.7"
         run: |
           python - <<'PY'
           import json, os, time, urllib.request
@@ -166,4 +166,10 @@ jobs:
               raise SystemExit("Dungeon analysis did not complete with usable item data.")
           if not analysis.get("dungeons_checked") or not analysis.get("items_evaluated"):
               raise SystemExit("Dungeon analysis did not evaluate any sourced loot.")
+          upgrades = [u for dungeon in (analysis.get("rankings") or [])
+                      for u in (dungeon.get("upgrades") or [])]
+          if not any(u.get("name") == "Illusionary Rod" for u in upgrades):
+              raise SystemExit("Expected Scarlet Monastery Library's Illusionary Rod upgrade was not recognized.")
+          if not any(u.get("name") == "Robe of Doan" for u in upgrades):
+              raise SystemExit("Expected Scarlet Monastery Library's Robe of Doan upgrade was not recognized.")
           PY
