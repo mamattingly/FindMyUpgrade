@@ -38,16 +38,12 @@ function getViewerCustomization(modelData){
  return values;
 }
 
-export default function CharacterModel({modelData,armoryRenderUrl,name,previewItem=null}){
+export default function CharacterModel({modelData,armoryRenderUrl,name}){
  const id="wow-armory-model-"+useId().replace(/[^a-zA-Z0-9_-]/g,"");
  const [status,setStatus]=useState("loading");
  const [detail,setDetail]=useState("");
  const [loadedCount,setLoadedCount]=useState(0);
  const [showFallback,setShowFallback]=useState(true);
- const previewRef=useRef(previewItem);
- const previewActive=useRef(false);
- const retryRef=useRef(null);
- useEffect(()=>{previewRef.current=previewItem;},[previewItem]);
  useEffect(()=>{
   let disposed=false,viewer=null,observer=null,resizeObserver=null,mutationObserver=null;
   let booting=false,attempt=0,stabilityTimer=null,retryTimer=null,contextCanvas=null;
@@ -142,11 +138,10 @@ export default function CharacterModel({modelData,armoryRenderUrl,name,previewIt
   resizeObserver=new ResizeObserver(()=>{if(host.getBoundingClientRect().width>0)refreshCanvas();});
   resizeObserver.observe(host);
   mutationObserver=new MutationObserver(()=>{
-   if(!disposed&&!booting&&status==="ready"&&!host.querySelector("canvas"))
+   if(!disposed&&!booting&&!host.querySelector("canvas"))
     scheduleRecovery("The model renderer stopped. Rebuilding the 3D view…");
   });
   mutationObserver.observe(host,{childList:true,subtree:true});
-  retryRef.current=()=>scheduleRecovery("Rebuilding the character model…");
   boot();
   return ()=>{
    disposed=true;clearTimeout(stabilityTimer);clearTimeout(retryTimer);
