@@ -435,6 +435,36 @@ async def _thottbot_item_data(client, item_id):
         "data_source": "Thottbot Forever",
     }
 
+async def _blizzard_item_metadata(client, token, region, item_id):
+    namespaces = (
+        (f"static-forever-{region}", "Blizzard Forever metadata"),
+        (f"static-classic1x-{region}", "Blizzard Classic Era metadata"),
+        (f"static-classic-{region}", "Blizzard Classic metadata"),
+    ) if int(item_id) >= 100000 else (
+        (f"static-classic1x-{region}", "Blizzard Classic Era metadata"),
+        (f"static-classic-{region}", "Blizzard Classic metadata"),
+        (f"static-forever-{region}", "Blizzard Forever metadata"),
+    )
+    for namespace, source in namespaces:
+        try:
+            response = await client.get(
+                f"https://{region}.api.blizzard.com/data/wow/item/{int(item_id)}",
+                params={"namespace": namespace, "locale": REGION_LOCALES[region]},
+                headers={"Authorization": f"Bearer {token}"}, timeout=8)
+            if response.status_code != 200:
+                continue
+            data = response.json()
+            return {
+                "item_class": _api_name(data.get("item_class")),
+                "item_subclass": _api_name(data.get("item_subclass")),
+                "inventory_type": _api_name(data.get("inventory_type")),
+                "required_level": data.get("required_level"),
+                "data_source": source,
+            }
+        except (httpx.HTTPError, ValueError, TypeError):
+            continue
+    return None
+
 async def _static_item_data(client, token, region, item_id, semaphore):
     cache_key = (region, int(item_id))
     if cache_key in ITEM_CACHE:
@@ -447,18 +477,27 @@ async def _static_item_data(client, token, region, item_id, semaphore):
                 ITEM_CACHE[cache_key] = thottbot
                 return thottbot
 
-            # 2) WarcraftDB's public Forever tooltip endpoint.
+            # 2) Wowhead's Forever tooltip API (dataEnv=16) has exact item
+            # stats and recorded drop chances for this game version.
+            wowhead = await _wowhead_item_data(client, item_id)
+            if wowhead.get("parsed") and wowhead.get("name") and wowhead.get("stats"):
+                metadata = await _blizzard_item_metadata(client, token, region, item_id)
+                if metadata:
+                    for key in ("item_class", "item_subclass"):
+                        if metadata.get(key):
+                            wowhead[key] = metadata[key]
+                    if not wowhead.get("inventory_type") and metadata.get("inventory_type"):
+                        wowhead["inventory_type"] = metadata["inventory_type"]
+                    if metadata.get("data_source"):
+                        wowhead["data_source"] = "Wowhead Forever + " + metadata["data_source"]
+                ITEM_CACHE[cache_key] = wowhead
+                return wowhead
+
+            # 3) WarcraftDB's public Forever tooltip endpoint.
             warcraftdb = await _warcraftdb_item_data(client, item_id)
             if warcraftdb.get("parsed"):
                 ITEM_CACHE[cache_key] = warcraftdb
                 return warcraftdb
-
-            # 3) Wowhead's Forever tooltip API (dataEnv=16) has the exact
-            # Forever item revision and often includes the source drop chance.
-            wowhead = await _wowhead_item_data(client, item_id)
-            if wowhead.get("parsed") and wowhead.get("name") and wowhead.get("stats"):
-                ITEM_CACHE[cache_key] = wowhead
-                return wowhead
 
             # 4) Blizzard Forever static first, then Classic Era metadata as a
             # clearly-labelled fallback for legacy items absent from Forever.
