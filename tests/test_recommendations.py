@@ -268,10 +268,20 @@ def test_classic_model_viewer_uses_blizzard_appearance_ids_and_display_order(mon
 
     assert result["race"] == 4
     assert result["gender"] == 0
+    assert result["wmv_sex"] == 1
+    assert result["playable_class_id"] is None
     assert result["items"] == [[1, 456], [3, 789]]
     assert result["customizations"] == [
-        {"option_name": "Skin Color", "display_order": 3},
-        {"option_name": "Hair Style", "display_order": 7},
+        {"option_name": "Skin Color", "display_order": 3, "option_id": 1, "choice_id": 20},
+        {"option_name": "Hair Style", "display_order": 7, "option_id": 2, "choice_id": 30},
+    ]
+    assert result["resolved_appearances"] == [
+        {"item_id": 123, "slot": 1, "internal_slot_id": 0,
+         "item_appearance_modifier_id": None, "display_id": 456,
+         "source": "blizzard_item_appearance"},
+        {"item_id": 125, "slot": 3, "internal_slot_id": 2,
+         "item_appearance_modifier_id": None, "display_id": 789,
+         "source": "blizzard_item_appearance"},
     ]
     assert result["equipped_visual_item_count"] == 2
     assert result["missing_display_ids"] == []
