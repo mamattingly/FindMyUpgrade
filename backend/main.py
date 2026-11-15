@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from typing import Literal
 from backend.recommendations import DUNGEONS, recommend_dungeons
 
-app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.8.7")
+app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.8.8")
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "frontend" / "dist"
 REGION_LOCALES = {"us": "en_US", "eu": "en_GB", "kr": "ko_KR", "tw": "zh_TW"}
@@ -299,6 +299,118 @@ async def _wowhead_page_display_id(client, item_id):
     return None
 
 
+MODEL_APPEARANCE_CACHE = {}
+MODEL_APPEARANCE_DIAGNOSTICS = {}
+
+
+def _parse_icyveins_item_appearance(page):
+    """Extract Icy Veins' Forever ItemAppearance ID from its item reference block."""
+    text = BeautifulSoup(page or "", "html.parser").get_text(" ", strip=True)
+    match = re.search(r"\bAppearance\s*:\s*(\d+)\b", text, re.I)
+    return int(match.group(1)) if match else None
+
+
+def _extract_thewowdb_model_fields(payload):
+    """Extract only explicit appearance/display fields from TheWoWDB JSON."""
+    display_names = {"item_display_info_id", "display_id", "displayid", "display_info_id"}
+    appearance_names = {"appearance_id", "appearanceid", "item_appearance_id", "appearance"}
+    found = {"display_id": None, "appearance_id": None}
+
+    def visit(value):
+        if isinstance(value, dict):
+            for key, child in value.items():
+                normalized = re.sub(r"[^a-z0-9]", "", str(key).casefold())
+                if normalized in {re.sub(r"[^a-z0-9]", "", x) for x in display_names}:
+                    try:
+                        number = int(child)
+                        if number > 0 and found["display_id"] is None:
+                            found["display_id"] = number
+                    except (TypeError, ValueError):
+                        pass
+                elif normalized in {re.sub(r"[^a-z0-9]", "", x) for x in appearance_names}:
+                    candidates = child if isinstance(child, list) else [child]
+                    for candidate_value in candidates:
+                        if isinstance(candidate_value, dict):
+                            candidate_value = candidate_value.get("id")
+                        try:
+                            number = int(candidate_value)
+                            if number > 0 and found["appearance_id"] is None:
+                                found["appearance_id"] = number
+                        except (TypeError, ValueError):
+                            pass
+                visit(child)
+        elif isinstance(value, list):
+            for child in value:
+                visit(child)
+
+    visit(payload)
+    return found
+
+
+async def _icyveins_item_appearance_id(client, item_id):
+    item_id = int(item_id)
+    if item_id in MODEL_APPEARANCE_CACHE:
+        return MODEL_APPEARANCE_CACHE[item_id]
+    url = f"https://db.icy-veins.com/wow-forever/items/{item_id}"
+    diagnostic = {"source": "icy_veins", "url": url}
+    try:
+        response = await client.get(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml",
+            },
+            timeout=12)
+        appearance_id = _parse_icyveins_item_appearance(response.text) if response.status_code == 200 else None
+        diagnostic.update({
+            "status": response.status_code,
+            "html_length": len(response.text or ""),
+            "appearance_id": appearance_id,
+        })
+    except httpx.HTTPError as exc:
+        appearance_id = None
+        diagnostic["error"] = type(exc).__name__
+    MODEL_APPEARANCE_CACHE[item_id] = appearance_id
+    MODEL_APPEARANCE_DIAGNOSTICS.setdefault(item_id, []).append(diagnostic)
+    return appearance_id
+
+
+async def _thewowdb_item_model_fields(client, item_id):
+    url = f"https://thewowdb.com/api/v1/forever/item/{int(item_id)}"
+    diagnostic = {"source": "thewowdb", "url": url}
+    try:
+        response = await client.get(url, headers={"Accept": "application/json"}, timeout=12)
+        diagnostic["status"] = response.status_code
+        if response.status_code != 200:
+            MODEL_APPEARANCE_DIAGNOSTICS.setdefault(int(item_id), []).append(diagnostic)
+            return {"display_id": None, "appearance_id": None}
+        payload = response.json()
+        fields = _extract_thewowdb_model_fields(payload)
+        diagnostic.update({
+            "top_keys": sorted(payload.keys())[:50] if isinstance(payload, dict) else [],
+            **fields,
+        })
+        MODEL_APPEARANCE_DIAGNOSTICS.setdefault(int(item_id), []).append(diagnostic)
+        return fields
+    except (httpx.HTTPError, ValueError) as exc:
+        diagnostic["error"] = type(exc).__name__
+        MODEL_APPEARANCE_DIAGNOSTICS.setdefault(int(item_id), []).append(diagnostic)
+        return {"display_id": None, "appearance_id": None}
+
+
+async def _blizzard_item_appearance_display_id(client, token, region, appearance_id):
+    if not appearance_id:
+        return None
+    data = await _blizzard_static_json(
+        client, token, region, f"data/wow/item-appearance/{int(appearance_id)}",
+        required_field="item_display_info_id")
+    try:
+        value = int((data or {}).get("item_display_info_id"))
+        return value if value > 0 else None
+    except (TypeError, ValueError):
+        return None
+
+
 async def _build_character_model(client, token, region, appearance, race_name=None):
     """Build Classic viewer input from Forever's transmog-aware appearance API."""
     if not isinstance(appearance, dict):
@@ -342,40 +454,72 @@ async def _build_character_model(client, token, region, appearance, race_name=No
 
     appearance_ids = await asyncio.gather(*(resolve_appearance(item) for item in visible))
 
-    async def resolve_display_id(appearance_id):
-        if not appearance_id:
-            return None
-        data = await _blizzard_static_json(
-            client, token, region, f"data/wow/item-appearance/{int(appearance_id)}",
-            required_field="item_display_info_id")
-        display_id = (data or {}).get("item_display_info_id")
-        try:
-            value = int(display_id)
-            return value if value > 0 else None
-        except (TypeError, ValueError):
-            return None
+    display_ids = await asyncio.gather(*(
+        _blizzard_item_appearance_display_id(client, token, region, app_id)
+        for app_id in appearance_ids
+    ))
+    display_sources = [
+        "blizzard_item_appearance" if display_id else None
+        for display_id in display_ids
+    ]
 
-    display_ids = await asyncio.gather(*(resolve_display_id(app_id) for app_id in appearance_ids))
-    # Blizzard's item-appearance catalog does not cover every legacy Forever
-    # item. Wowhead's own item page exposes modelviewer.displayid for those.
+    # Forever item pages can expose an ItemAppearance row even when the
+    # Blizzard Item API omits the item's appearances array.
     fallback_semaphore = asyncio.Semaphore(5)
 
-    async def fallback_display_id(item_id):
+    async def fallback_display_data(item_id):
         async with fallback_semaphore:
-            return await _wowhead_page_display_id(client, item_id)
+            # Query the free Forever item API and the Forever item reference
+            # page concurrently. Both provide item-specific data, never guesses.
+            thewowdb_task = _thewowdb_item_model_fields(client, item_id)
+            icy_task = _icyveins_item_appearance_id(client, item_id)
+            thewowdb_fields, icy_appearance_id = await asyncio.gather(thewowdb_task, icy_task)
+
+            if thewowdb_fields.get("display_id"):
+                return thewowdb_fields["display_id"], "thewowdb_display_id"
+
+            appearance_id = (
+                thewowdb_fields.get("appearance_id")
+                or icy_appearance_id
+            )
+            if appearance_id:
+                display_id = await _blizzard_item_appearance_display_id(
+                    client, token, region, appearance_id)
+                MODEL_APPEARANCE_DIAGNOSTICS.setdefault(item_id, []).append({
+                    "source": "blizzard_item_appearance_from_fallback",
+                    "appearance_id": appearance_id,
+                    "display_id": display_id,
+                })
+                if display_id:
+                    return display_id, "blizzard_item_appearance_from_icyveins_or_thewowdb"
+
+            # Last resort only: Wowhead item pages are frequently bot-blocked
+            # from server runtimes, but retain the fallback for when accessible.
+            display_id = await _wowhead_page_display_id(client, item_id)
+            if display_id:
+                return display_id, "wowhead_modelviewer"
+            return None, None
 
     fallback_indexes = [i for i, display_id in enumerate(display_ids) if not display_id]
     fallback_values = await asyncio.gather(*(
-        fallback_display_id(visible[i]["item_id"]) for i in fallback_indexes
+        fallback_display_data(visible[i]["item_id"]) for i in fallback_indexes
     ))
-    for index, display_id in zip(fallback_indexes, fallback_values):
+    for index, (display_id, source) in zip(fallback_indexes, fallback_values):
         display_ids[index] = display_id
+        display_sources[index] = source
 
     items = []
     missing = []
-    for equipped, display_id in zip(visible, display_ids):
+    resolved_appearances = []
+    for equipped, display_id, source in zip(visible, display_ids, display_sources):
         if display_id:
             items.append([equipped["slot"], display_id])
+            resolved_appearances.append({
+                "item_id": equipped["item_id"],
+                "slot": equipped["slot"],
+                "display_id": display_id,
+                "source": source,
+            })
         else:
             missing.append(equipped["item_id"])
 
@@ -401,9 +545,15 @@ async def _build_character_model(client, token, region, appearance, race_name=No
         "resolved_item_count": len(items),
         "equipped_visual_item_count": len(visible),
         "missing_display_ids": missing,
-        "display_fallback_debug": {str(item_id): MODEL_DISPLAY_DIAGNOSTICS.get(item_id, [])
-                                   for item_id in missing},
-        "source": "Blizzard item appearance APIs + Wowhead modelviewer metadata fallback",
+        "resolved_appearances": resolved_appearances,
+        "display_fallback_debug": {
+            str(item_id): (
+                MODEL_APPEARANCE_DIAGNOSTICS.get(item_id, [])
+                + MODEL_DISPLAY_DIAGNOSTICS.get(item_id, [])
+            ) for item_id in set(missing) | {x["item_id"] for x in resolved_appearances
+                                             if x["source"] != "blizzard_item_appearance"}
+        },
+        "source": "Blizzard Forever appearance + Blizzard, TheWoWDB, Icy Veins and Wowhead item display metadata",
     }
 
 def _numeric_value(value):

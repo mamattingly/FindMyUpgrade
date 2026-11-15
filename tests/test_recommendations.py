@@ -282,3 +282,29 @@ def test_wowhead_item_page_model_display_id_parser():
     assert _parse_wowhead_model_display_id(page) == 98765
     assert _parse_wowhead_model_display_id("modelviewer: { displayID: 12345, type: 1 }") == 12345
     assert _parse_wowhead_model_display_id("<html>no model metadata</html>") is None
+
+
+def test_icy_veins_item_appearance_parser():
+    from backend.main import _parse_icyveins_item_appearance
+    page = """
+      <main>
+        <h1>Town Clerk's Mittens</h1>
+        <dl><dt>Appearance:</dt><dd>66022</dd></dl>
+      </main>
+    """
+    assert _parse_icyveins_item_appearance(page) == 66022
+    assert _parse_icyveins_item_appearance("<html>No appearance data</html>") is None
+
+
+def test_thewowdb_model_fields_extract_display_and_appearance_ids():
+    from backend.main import _extract_thewowdb_model_fields
+    payload = {
+        "id": 270029,
+        "appearance": {"id": 66022},
+        "media": {"icon": 132961},
+        "display_id": 123456,
+    }
+    assert _extract_thewowdb_model_fields(payload) == {
+        "display_id": 123456,
+        "appearance_id": 66022,
+    }
