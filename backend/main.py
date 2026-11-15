@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from typing import Literal
 from backend.recommendations import DUNGEONS, recommend_dungeons
 
-app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.8.7")
+app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.8.8")
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "frontend" / "dist"
 REGION_LOCALES = {"us": "en_US", "eu": "en_GB", "kr": "ko_KR", "tw": "zh_TW"}
@@ -313,7 +313,7 @@ def _parse_icyveins_item_appearance(page):
 def _extract_thewowdb_model_fields(payload):
     """Extract only explicit appearance/display fields from TheWoWDB JSON."""
     display_names = {"item_display_info_id", "display_id", "displayid", "display_info_id"}
-    appearance_names = {"appearance_id", "appearanceid", "item_appearance_id"}
+    appearance_names = {"appearance_id", "appearanceid", "item_appearance_id", "appearance"}
     found = {"display_id": None, "appearance_id": None}
 
     def visit(value):
@@ -328,19 +328,16 @@ def _extract_thewowdb_model_fields(payload):
                     except (TypeError, ValueError):
                         pass
                 elif normalized in {re.sub(r"[^a-z0-9]", "", x) for x in appearance_names}:
-                    try:
-                        number = int(child)
-                        if number > 0 and found["appearance_id"] is None:
-                            found["appearance_id"] = number
-                    except (TypeError, ValueError):
-                        if isinstance(child, dict):
-                            candidate = child.get("id")
-                            try:
-                                number = int(candidate)
-                                if number > 0 and found["appearance_id"] is None:
-                                    found["appearance_id"] = number
-                            except (TypeError, ValueError):
-                                pass
+                    candidates = child if isinstance(child, list) else [child]
+                    for candidate_value in candidates:
+                        if isinstance(candidate_value, dict):
+                            candidate_value = candidate_value.get("id")
+                        try:
+                            number = int(candidate_value)
+                            if number > 0 and found["appearance_id"] is None:
+                                found["appearance_id"] = number
+                        except (TypeError, ValueError):
+                            pass
                 visit(child)
         elif isinstance(value, list):
             for child in value:
