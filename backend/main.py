@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from typing import Literal
 from backend.recommendations import DUNGEONS, recommend_dungeons
 
-app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.8.2")
+app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.8.3")
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "frontend" / "dist"
 REGION_LOCALES = {"us": "en_US", "eu": "en_GB", "kr": "ko_KR", "tw": "zh_TW"}
@@ -214,61 +214,113 @@ def _appearance_gender_id(gender):
     return None
 
 
-async def _build_character_model(client, appearance, equipment, race_name=None):
-    """Build Classic model-viewer input from Forever appearance/equipment APIs."""
-    if not isinstance(appearance, dict) or not isinstance(equipment, dict):
+async def _blizzard_static_json(client, token, region, path):
+    """Fetch a Forever static endpoint, falling back to Classic item data when needed."""
+    for namespace in (
+        f"static-forever-{region}",
+        f"static-classic1x-{region}",
+        f"static-classic-{region}",
+    ):
+        try:
+            response = await client.get(
+                f"https://{region}.api.blizzard.com/{path.lstrip('/')}",
+                params={"namespace": namespace, "locale": REGION_LOCALES[region]},
+                headers={"Authorization": f"Bearer {token}"}, timeout=10)
+            if response.status_code == 200:
+                payload = response.json()
+                if isinstance(payload, dict):
+                    return payload
+        except (httpx.HTTPError, ValueError, TypeError):
+            continue
+    return None
+
+
+async def _build_character_model(client, token, region, appearance, race_name=None):
+    """Build Classic viewer input from Forever's transmog-aware appearance API."""
+    if not isinstance(appearance, dict):
         return None
     playable_race = appearance.get("playable_race") or {}
     race_id = playable_race.get("id") if isinstance(playable_race, dict) else None
     if not race_id:
         race_id = MODEL_RACE_IDS.get(str(race_name or "").casefold())
-    gender_id = _appearance_gender_id(appearance.get("gender"))
+    gender = appearance.get("gender") or {}
+    gender_type = gender.get("type") if isinstance(gender, dict) else gender
+    gender_id = 0 if str(gender_type).casefold() == "female" else 1 if str(gender_type).casefold() == "male" else None
     if not race_id or gender_id is None:
         return None
 
-    equipped = equipment.get("equipped_items") or []
-    semaphore = asyncio.Semaphore(8)
-
-    async def resolve(entry):
-        if not isinstance(entry, dict):
-            return None
-        display_slot = _model_viewer_slot(entry.get("slot"), entry.get("inventory_type"))
-        if display_slot is None:
-            return None
-        item = entry.get("item") or {}
-        transmog = entry.get("transmog") or {}
-        transmog_item = transmog.get("item") or {}
-        item_id = transmog_item.get("id") or item.get("id")
-        if not item_id:
-            return None
-        async with semaphore:
-            details = await _wowhead_item_data(client, int(item_id))
-        display_id = details.get("display_id")
+    # The viewer uses 1-based inventory slots. Blizzard's internal_slot_id is
+    # 0-based, so viewerSlot = internal_slot_id + 1.
+    not_displayed = {2, 11, 12, 13, 14}
+    visible = []
+    for entry in appearance.get("items") or []:
+        if not isinstance(entry, dict) or not entry.get("id"):
+            continue
         try:
-            display_id = int(display_id)
+            viewer_slot = int(entry.get("internal_slot_id")) + 1
         except (TypeError, ValueError):
-            return {"slot": display_slot, "item_id": int(item_id), "display_id": None}
-        if display_id <= 0:
-            return {"slot": display_slot, "item_id": int(item_id), "display_id": None}
-        return {"slot": display_slot, "item_id": int(item_id), "display_id": display_id}
+            continue
+        if viewer_slot in not_displayed:
+            continue
+        visible.append({"item_id": int(entry["id"]), "slot": viewer_slot})
 
-    resolved = await asyncio.gather(*(resolve(entry) for entry in equipped))
-    resolved = [item for item in resolved if item]
-    items = [[item["slot"], item["display_id"]] for item in resolved if item.get("display_id")]
+    async def resolve_appearance(item):
+        data = await _blizzard_static_json(
+            client, token, region, f"data/wow/item/{item['item_id']}")
+        appearances = (data or {}).get("appearances") or []
+        if not appearances or not isinstance(appearances[0], dict):
+            return None
+        appearance_id = appearances[0].get("id")
+        if not appearance_id:
+            return None
+        return int(appearance_id)
+
+    appearance_ids = await asyncio.gather(*(resolve_appearance(item) for item in visible))
+
+    async def resolve_display_id(appearance_id):
+        if not appearance_id:
+            return None
+        data = await _blizzard_static_json(
+            client, token, region, f"data/wow/item-appearance/{int(appearance_id)}")
+        display_id = (data or {}).get("item_display_info_id")
+        try:
+            value = int(display_id)
+            return value if value > 0 else None
+        except (TypeError, ValueError):
+            return None
+
+    display_ids = await asyncio.gather(*(resolve_display_id(x) for x in appearance_ids))
+    items = []
+    missing = []
+    for equipped, display_id in zip(visible, display_ids):
+        if display_id:
+            items.append([equipped["slot"], display_id])
+        else:
+            missing.append(equipped["item_id"])
+
     customizations = []
     for entry in appearance.get("customizations") or []:
         if not isinstance(entry, dict):
             continue
-        option, choice = entry.get("option") or {}, entry.get("choice") or {}
-        if option.get("id") is not None and choice.get("id") is not None:
-            customizations.append({"option_id": option["id"], "choice_id": choice["id"]})
+        option = entry.get("option") or {}
+        choice = entry.get("choice") or {}
+        option_name = _api_name(option.get("name"))
+        display_order = choice.get("display_order")
+        if option_name and display_order is not None:
+            try:
+                customizations.append({
+                    "option_name": str(option_name),
+                    "display_order": int(display_order),
+                })
+            except (TypeError, ValueError):
+                continue
     return {
         "race": int(race_id), "gender": gender_id,
         "customizations": customizations, "items": items,
         "resolved_item_count": len(items),
-        "equipped_visual_item_count": len(resolved),
-        "missing_display_ids": [x["item_id"] for x in resolved if not x.get("display_id")],
-        "source": "Blizzard Forever appearance/equipment + Wowhead Classic model data",
+        "equipped_visual_item_count": len(visible),
+        "missing_display_ids": missing,
+        "source": "Blizzard Forever appearance + item appearance APIs",
     }
 
 def _numeric_value(value):
@@ -774,7 +826,7 @@ async def scan(req: ScanRequest):
                 _profile_api(client, token, req.region, profile_slug, "appearance"),
                 _profile_api(client, token, req.region, profile_slug, "character-media"))
             gear, spec, professions = _gear_from_api(equipment_data), _spec_from_api(spec_data), _professions_from_api(profession_data)
-            model_data = await _build_character_model(client, appearance_data, equipment_data, race)
+            model_data = await _build_character_model(client, token, req.region, appearance_data, race)
             media_assets = {
                 asset.get("key"): asset.get("value")
                 for asset in (media_data or {}).get("assets", [])

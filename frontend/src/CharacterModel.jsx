@@ -20,22 +20,20 @@ function loadScript(src){
 const FIELD_BY_OPTION={
  "Face":"face","Skin Color":"skin","Hair Style":"hairStyle","Hair Color":"hairColor",
  "Facial Hair":"facialStyle","Mustache":"facialStyle","Beard":"facialStyle",
- "Sideburns":"facialStyle","Ears":"ears","Fur Color":"furColor","Snout":"snout"
+ "Sideburns":"facialStyle","Face Shape":"facialStyle","Eyebrow":"facialStyle","Eyebrows":"facialStyle",
+ "Ears":"ears","Fur Color":"furColor","Snout":"snout",
+ "Primary Color":"primaryColor","Secondary Color":"secondaryColor",
+ "Secondary Color Strength":"secondaryColorStrength","Horn Color":"hornColor",
+ "Horns":"horns","Body Size":"bodySize"
 };
 
-function getViewerCustomization(modelData,fullOptions){
- const values={};
- for(const option of fullOptions?.Options||[]){
-  const field=FIELD_BY_OPTION[option.Name];
-  if(field&&values[field]===undefined)values[field]=0;
- }
+function getViewerCustomization(modelData){
+ const values={skin:0,face:0,hairStyle:0,hairColor:0,facialStyle:0,ears:0,furColor:0,snout:0,
+  primaryColor:0,secondaryColor:0,secondaryColorStrength:0,hornColor:0,horns:0,bodySize:0};
  for(const entry of modelData.customizations||[]){
-  const option=fullOptions?.Options?.find(x=>Number(x.Id)===Number(entry.option_id));
-  if(!option)continue;
-  const field=FIELD_BY_OPTION[option.Name];
-  if(!field)continue;
-  const choiceIndex=(option.Choices||[]).findIndex(x=>Number(x.Id)===Number(entry.choice_id));
-  if(choiceIndex>=0)values[field]=choiceIndex;
+  const field=FIELD_BY_OPTION[entry.option_name];
+  const displayOrder=Number(entry.display_order);
+  if(field&&Number.isInteger(displayOrder)&&displayOrder>=0)values[field]=displayOrder;
  }
  return values;
 }
@@ -67,11 +65,10 @@ export default function CharacterModel({modelData,armoryRenderUrl,name}){
     const library=await import("wow-model-viewer");
     // The Classic model metadata uses its own customization and equipment tables.
     window.WOTLK_TO_RETAIL_DISPLAY_ID_API=undefined;
-    const fullOptions=await library.findRaceGenderOptions(Number(modelData.race),Number(modelData.gender));
     const character={
      race:Number(modelData.race),
      gender:Number(modelData.gender),
-     ...getViewerCustomization(modelData,fullOptions),
+     ...getViewerCustomization(modelData),
      items:modelData.items
     };
     viewer=await library.generateModels(1.45,"#"+id,character,"classic");
