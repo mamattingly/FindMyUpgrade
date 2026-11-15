@@ -43,6 +43,7 @@ export default function CharacterModel({modelData,armoryRenderUrl,name}){
  const [status,setStatus]=useState("loading");
  const [detail,setDetail]=useState("");
  const [loadedCount,setLoadedCount]=useState(0);
+ const [stable,setStable]=useState(false);
  const [showFallback,setShowFallback]=useState(true);
  useEffect(()=>{
   let disposed=false,viewer=null,stabilityTimer=null,observer=null,contextLostHandler=null;
