@@ -204,6 +204,28 @@ jobs:
                   embed_result={"error":type(exc).__name__,"detail":str(exc)[:500]}
               print("Armory iframe embed test:",json.dumps(embed_result,indent=2))
               embed_page.close()
+              faith_page=browser.new_page(viewport={"width":560,"height":560})
+              faith_errors=[]
+              faith_page.on("pageerror",lambda error:faith_errors.append(str(error)[:500]))
+              faith_response=faith_page.goto(
+                  "https://armorywowforever.com/c/forever/us/pve/Faith-Heal",
+                  wait_until="domcontentloaded",timeout=90000)
+              faith_page.wait_for_timeout(12000)
+              faith_result=faith_page.evaluate("""() => ({
+                title:document.title,
+                url:location.href,
+                modelBox:document.querySelector("#model3d")?.getBoundingClientRect().toJSON(),
+                canvas:document.querySelector("#model3d canvas")?
+                  {width:document.querySelector("#model3d canvas").width,
+                   height:document.querySelector("#model3d canvas").height}:null,
+                text:(document.querySelector("main")?.innerText||document.body.innerText).slice(0,700)
+              })""")
+              print("Faith Heal PvE Armory page:",{
+                "status":faith_response.status if faith_response else None,
+                "result":faith_result,"pageErrors":faith_errors[:10]
+              })
+              faith_page.close()
+
 
 
 
