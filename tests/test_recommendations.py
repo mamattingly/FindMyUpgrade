@@ -352,3 +352,22 @@ def test_modelviewer_asset_fallback_candidates_for_forever():
     assert robe[-1].endswith("/classic/meta/armor/20/8857.json")
     classic = _modelviewer_asset_candidates("classic", "meta/item/5554.json")
     assert classic == ["https://wow.zamimg.com/modelviewer/classic/meta/item/5554.json"]
+
+def test_healer_ignores_dps_only_stats_even_with_high_armor_and_item_level():
+    dps_only = {
+        "item_level": 60,
+        "armor": 200,
+        "stats": [
+            {"name": "Spell Damage", "value": 100},
+            {"name": "Hit", "value": 20},
+        ],
+    }
+    for class_name, spec in [
+        ("Priest", "Discipline"),
+        ("Priest", "Holy"),
+        ("Druid", "Restoration"),
+        ("Shaman", "Restoration"),
+        ("Paladin", "Holy"),
+    ]:
+        assert rec.item_score(dps_only, class_name, spec) == 0.0
+
