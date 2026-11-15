@@ -39,8 +39,8 @@ export default function App(){
  const current=profiles[active],skillKey=current?current.region+":"+current.name.toLowerCase():"";
  const currentSkills=skills[skillKey]||{},gear=useMemo(()=>current?.gear||[],[current]);
  const rec=current?.recommendations,best=rec?.recommended;
- async function scan(){
-  if(name.trim().split(/\s+/).length!==2){setMessage("Enter the character's first and last name.");return}
+ async function scan(characterName=name,characterRegion=region){
+  if(characterName.trim().split(/\s+/).length!==2){setMessage("Enter the character's first and last name.");return}
   setBusy(true);setMessage("");
   try{
    const r=await fetch("/api/scan",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({region:characterRegion,name:characterName.trim()})});
