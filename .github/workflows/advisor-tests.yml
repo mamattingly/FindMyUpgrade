@@ -142,13 +142,16 @@ jobs:
           APP_URL: https://wow-forever-dungeon-advisor-1zlg.onrender.com
         run: |
           python - <<'PY'
-          import json, os, urllib.request
+          import json, os, time, urllib.parse, urllib.request
           url = os.environ["APP_URL"].rstrip("/") + "/api/scan"
           body = json.dumps({"region": "us", "name": "Faith Heal"}).encode()
           request = urllib.request.Request(url, data=body,
               headers={"Content-Type": "application/json"}, method="POST")
+          scan_started = time.perf_counter()
           with urllib.request.urlopen(request, timeout=180) as response:
               payload = json.load(response)
+          scan_seconds = round(time.perf_counter() - scan_started, 2)
+          print("Character scan seconds:", scan_seconds)
           print(json.dumps({
               "character": payload.get("character"),
               "gear_count": len(payload.get("equipped_gear") or []),
@@ -172,13 +175,14 @@ jobs:
               raise SystemExit("Expected Scarlet Monastery Library's Illusionary Rod upgrade was not recognized.")
           if not analysis.get("recommended") or not analysis.get("rankings"):
               raise SystemExit("Live scan did not produce a best-dungeon recommendation.")
-          import urllib.parse
           item_ids = sorted({str(x.get("id")) for x in gear if x.get("id")} |
                             {str(u.get("item_id")) for dungeon in (analysis.get("rankings") or [])[:1]
                              for u in (dungeon.get("upgrades") or []) if u.get("item_id")})
           icon_url = os.environ["APP_URL"].rstrip("/") + "/api/item-icons?" + urllib.parse.urlencode({"ids": ",".join(item_ids)})
+          icon_started = time.perf_counter()
           with urllib.request.urlopen(icon_url, timeout=90) as response:
               icon_payload = json.load(response)
+          print("Deferred icon fetch seconds:", round(time.perf_counter() - icon_started, 2))
           icons = icon_payload.get("icons") or {}
           if not any(str(x.get("id")) in icons for x in gear):
               raise SystemExit("Deferred item artwork did not return an equipped item icon.")
