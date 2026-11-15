@@ -5,6 +5,18 @@ import {canExportWmvCharacter,downloadWmvCharacter} from "./wowModelViewerExport
 import {KEY,REGION_KEY,SKILL_KEY,GOALS_KEY,RUNS_KEY,NAMES,SOURCES,iconFallback,read,loadForeverDungeonXp,rankInfo,relevantStats,rankFarmDungeons,XP_CACHE_KEY,isDungeonXpEligible} from "./lib/advisor.js";
 function ItemIcon({src,name,size="large"}){return <span className={"itemicon "+size}><img src={src||iconFallback} alt={name+" icon"} loading="lazy" onError={e=>{e.currentTarget.src=iconFallback}}/></span>}
 function StatLine({stats}){if(!stats?.length)return null;return <div className="statline">{stats.map((s,i)=><span key={i}>{s}</span>)}</div>}
+function StatComparison({upgrade,character}){
+ const equipped=upgrade.equipped_items||[],before=new Map(),after=new Map();
+ for(const item of equipped)for(const stat of item.stats||[]){const key=String(stat.name||"");before.set(key,(before.get(key)||0)+Number(stat.value||0));}
+ for(const stat of upgrade.stat_values||[]){const key=String(stat.name||"");after.set(key,(after.get(key)||0)+Number(stat.value||0));}
+ const names=[...new Set([...before.keys(),...after.keys()])];
+ const rows=names.filter(name=>relevantStats([{name,value:1}],character.class,character.spec).length>0).map(name=>({name,old:before.get(name)||0,next:after.get(name)||0,delta:(after.get(name)||0)-(before.get(name)||0)})).filter(x=>x.old!==0||x.next!==0);
+ return <div className="upgrade-comparison">
+  <div className="comparison-items"><div><small>EQUIPPED</small><b>{equipped.length?equipped.map(x=>x.name||"Equipped item").join(" + "):"No item equipped"}</b></div><span className="comparison-arrow">→</span><div><small>POTENTIAL UPGRADE</small><b>{upgrade.name}</b></div></div>
+  {rows.length?<div className="comparison-stats"><div className="comparison-head"><span>RELEVANT STAT</span><span>HAVE</span><span>GET</span><span>CHANGE</span></div>{rows.map(row=><div className="comparison-stat" key={row.name}><b>{row.name}</b><span>{row.old>0?"+":""}{row.old}</span><span>{row.next>0?"+":""}{row.next}</span><strong className={row.delta>0?"stat-up":row.delta<0?"stat-down":"stat-even"}>{row.delta>0?"+":""}{row.delta}</strong></div>)}</div>:<p className="comparison-empty">Raw stat details are unavailable for one or both items.</p>}
+  <div className="comparison-score">Estimated specialization-weighted score change: <b className="stat-up">+{Number(upgrade.gain||0).toFixed(2)}</b></div>
+ </div>;
+}
 export default function App(){
  const [profiles,setProfiles]=useState(()=>read(KEY,[]).filter(p=>p&&p.name&&p.class&&p.class!=="Unknown"&&Number.isFinite(p.level)));
  const [region,setRegion]=useState(()=>localStorage.getItem(REGION_KEY)||"us");
@@ -74,7 +86,22 @@ export default function App(){
  function setSkill(prof,value){const n=Math.max(0,Math.min(300,Number(value)||0));setSkills(old=>({...old,[skillKey]:{...(old[skillKey]||{}),[prof]:n}}))}
  function toggleGoal(key){setGoals(old=>({...old,[key]:!old[key]}));if(key==="mustGrantXp"&&!goals.mustGrantXp&&!Object.keys(xpMobLevels).length){setXpLoading(true);loadForeverDungeonXp(dungeonNames).then(setXpMobLevels).catch(e=>setMessage(e.message)).finally(()=>setXpLoading(false));}}
  const visibleSkills=showAllSkills?NAMES:["Tailoring","Enchanting"];
- return <main className="app-shell">
+ return <main className="app-shell"><style>{`
+.upgrade-comparison{margin-top:10px;padding:10px 12px;border:1px solid var(--line,#303744);border-radius:10px;background:rgba(255,255,255,.025);min-width:0}
+.comparison-items{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+.comparison-items>div{display:grid;gap:3px;min-width:0;flex:1}
+.comparison-items small,.comparison-head{font-size:9px;letter-spacing:.09em;color:var(--muted,#8c96a6);font-weight:700}
+.comparison-items b{font-size:11px;line-height:1.35;overflow-wrap:anywhere}
+.comparison-arrow{color:var(--muted,#8c96a6)}
+.comparison-stats{display:grid;gap:4px}
+.comparison-head,.comparison-stat{display:grid;grid-template-columns:minmax(0,1.5fr) repeat(3,minmax(42px,.7fr));gap:7px;align-items:center}
+.comparison-stat{font-size:11px;padding:4px 0;border-top:1px solid rgba(255,255,255,.06)}
+.comparison-stat b{font-weight:600}
+.comparison-stat span,.comparison-stat strong{text-align:right;font-variant-numeric:tabular-nums}
+.stat-up{color:#65d6a3}.stat-down{color:#f08b8b}.stat-even{color:var(--muted,#8c96a6)}
+.comparison-score{margin-top:8px;padding-top:7px;border-top:1px solid rgba(255,255,255,.08);font-size:10px;color:var(--muted,#9aa4b2)}
+.comparison-empty{font-size:10px;color:var(--muted,#9aa4b2);margin:6px 0}
+`}</style>
   <header className="topbar">
    <a className="brand" href="#"><span className="brand-mark">F</span><span><b>FOREVER</b><small>DUNGEON ADVISOR</small></span></a>
    <div className="top-actions">{profiles.length>0?<select aria-label="Saved characters" value={active} onChange={e=>setActive(Number(e.target.value))}>{profiles.map((p,i)=><option key={p.id||i} value={i}>{p.name} · {p.class} {p.level}</option>)}</select>:<span className="top-caption">WOW FOREVER · CHARACTER PLANNER</span>}</div>
@@ -128,7 +155,7 @@ export default function App(){
       <div className="best-stats"><div><b>{best.upgrade_slots}</b><span>Upgrade slots</span></div><div><b>{best.sampleCount?best.avgMinutes.toFixed(0)+"m":"—"}</b><span>Avg clear time</span></div><div><b>{goals.tailoring&&best.sampleCount?best.clothPerHour.toFixed(1):goals.enchanting&&best.sampleCount?best.disenchantablesPerHour.toFixed(1):rec.rankings?.length||1}</b><span>{goals.tailoring&&best.sampleCount?"Relevant cloth/hr":goals.enchanting&&best.sampleCount?"Eligible items/hr":"Dungeons compared"}</span></div></div>
       <div className="loot-heading"><span>UPGRADES TO TARGET</span><small>Item stats compared with your gear</small></div>
       <div className="loot-list">{(best.upgrades||[]).map(u=><a className="loot-row" href={u.item_url} target="_blank" rel="noreferrer" key={u.item_id+"-"+u.slot}>
-       <ItemIcon src={u.icon_url} name={u.name}/><span className="loot-main"><b>{u.name}</b><small>{u.slot} <span>·</span> {u.boss}</small><StatLine stats={u.stats}/></span><span className="loot-extra"><b>{u.item_level?"iLvl "+u.item_level:""}</b><small>{u.drop_chance?u.drop_chance.toFixed(1)+"% drop":"Drop rate n/a"}</small><ExternalLink size={13}/></span>
+       <ItemIcon src={u.icon_url} name={u.name}/><span className="loot-main"><b>{u.name}</b><small>{u.slot} <span>·</span> {u.boss}</small><StatLine stats={u.stats}/><StatComparison upgrade={u} character={current}/></span><span className="loot-extra"><b>{u.item_level?"iLvl "+u.item_level:""}</b><small>{u.drop_chance?u.drop_chance.toFixed(1)+"% drop":"Drop rate n/a"}</small><ExternalLink size={13}/></span>
       </a>)}</div>
       <div className="best-card-foot"><span>{best.sampleCount?"Measured personal yield rates · proxies, not skill-up guarantees":"Estimated stat-weighted gear value per run"}</span><a href={best.source_url} target="_blank" rel="noreferrer">Loot source <ExternalLink size={12}/></a></div>
      </article>:<div className="empty-card"><h3>{rec?.status==="no_upgrades_found"?"No useful upgrades found":goals.mustGrantXp?"No dungeons meet the XP filter":"Dungeon analysis unavailable"}</h3><p>{goals.mustGrantXp&&xpQualified.length===0?"No dungeons have sufficient Forever NPC level records to confirm that most mobs award XP at your current level.":rec?.message||"Run a fresh character analysis to calculate dungeon recommendations."}</p></div>}
