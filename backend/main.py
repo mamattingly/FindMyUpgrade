@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from typing import Literal
 from backend.recommendations import DUNGEONS, recommend_dungeons
 
-app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.6.8")
+app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.7.0")
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "frontend" / "dist"
 REGION_LOCALES = {"us": "en_US", "eu": "en_GB", "kr": "ko_KR", "tw": "zh_TW"}
@@ -404,7 +404,7 @@ async def _attach_item_icons(client, gear, recommendations):
     gear_ids = [int(item["id"]) for item in gear if item.get("id")]
     recommendation_ids = [
         int(item["item_id"])
-        for dungeon in (recommendations.get("rankings") or [])[:3]
+        for dungeon in (recommendations.get("rankings") or [])[:1]
         for item in (dungeon.get("upgrades") or [])
         if item.get("item_id")
     ]
@@ -417,7 +417,7 @@ async def _attach_item_icons(client, gear, recommendations):
     for item in gear:
         if item.get("id"):
             item["icon_url"] = icons.get(int(item["id"]))
-    for dungeon in (recommendations.get("rankings") or [])[:3]:
+    for dungeon in (recommendations.get("rankings") or [])[:1]:
         for item in (dungeon.get("upgrades") or []):
             if item.get("item_id"):
                 item["icon_url"] = icons.get(int(item["item_id"]))
