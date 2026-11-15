@@ -197,3 +197,129 @@ body{background:radial-gradient(ellipse at 50% -30%,#24332f 0%,#111719 40%,#0d11
  .character-model{height:180px}
  .char-name{font-size:17px}
 }
+
+
+/* Daylight product UI — make the next useful action obvious. */
+:root{
+ color-scheme:light;
+ --bg:#f4f6f8;--panel:#ffffff;--panel-raised:#ffffff;--panel-soft:#f7f9fa;
+ --line:#e2e7eb;--line-strong:#cbd5dc;--text:#18232d;--muted:#687784;
+ --accent:#286b62;--accent-strong:#1d5b53;--accent-wash:#e8f2ef;
+ color:#18232d;background:#f4f6f8;
+}
+body{background:#f4f6f8;color:#18232d}
+.app-shell{max-width:1360px;padding:0 32px}
+.topbar{border-color:#e3e8ec}
+.brand b{color:#1b2933}
+.brand small{color:#74828d}
+.brand-mark{background:#1f6259;color:#fff;box-shadow:none}
+.kicker{color:#286b62}
+.search-hero{padding:40px 0 26px;gap:40px}
+.search-hero h1{color:#17232d;font-size:clamp(40px,4.7vw,58px)}
+.search-hero h1 em{color:#286b62}
+.search-hero p{color:#647481}
+.search-card,.goal-panel,.side-card,.best-card,.empty-card,.alternatives,.welcome-panel,.run-log-panel{
+ background:#fff;border:1px solid #e1e7eb;border-radius:14px;box-shadow:0 4px 18px #1b2b3510
+}
+.search-card{padding:18px}
+.search-card label{color:#60717d}
+.search-controls input,.search-controls select,.top-actions select,.run-log-form input,.run-log-form select,.goal-skills input,.profession-inputs input{
+ background:#f8fafb;border:1px solid #d8e0e5;color:#1d2a34;border-radius:8px
+}
+.search-controls button,.run-log-form button{background:#21675e;color:#fff;border-radius:8px;box-shadow:none}
+.search-foot,.top-caption{color:#83909a}
+.top-actions select{background:#fff;color:#293640}
+.character-strip{background:#fff;border:1px solid #e1e7eb;border-radius:14px;box-shadow:0 4px 18px #1b2b350b;padding:14px 18px;min-height:0;grid-template-columns:190px minmax(0,1fr) auto;gap:20px}
+.character-model{height:205px;border:1px solid #e3e9ec;background:radial-gradient(ellipse at 50% 40%,#edf3f2,#f8fafb 75%)}
+.character-model-canvas{background:radial-gradient(ellipse at 50% 40%,#edf3f2,#f8fafb 75%)}
+.wow-armory-viewer{background:transparent}
+.char-name{color:#192832;font-size:21px}
+.char-sub{color:#6b7a86}
+.refresh-character,.native-export{background:#f5f8f8;border:1px solid #d9e3e2;color:#28665d;border-radius:8px}
+.armory-link{background:#f5f8f8;border:1px solid #d9e3e2;color:#28665d;border-radius:8px}
+.goal-panel,.run-log-panel{padding:0;margin:0 0 12px;overflow:hidden}
+.secondary-summary{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 17px;cursor:pointer;list-style:none}
+.secondary-summary::-webkit-details-marker{display:none}
+.secondary-summary>span{display:grid;gap:3px}
+.secondary-summary b{font-size:12px;color:#24333d}
+.secondary-summary small{font-size:10px;color:#74828d}
+.secondary-summary>svg{color:#71818b;transition:transform .18s}
+.secondary-settings[open]>.secondary-summary>svg{transform:rotate(180deg)}
+.secondary-settings-body{padding:0 17px 16px;border-top:1px solid #edf0f2}
+.secondary-settings-body>.section-heading{padding-top:14px}
+.goal-option{background:#f8fafb;border:1px solid #e2e8eb;color:#52616c;border-radius:10px}
+.goal-option b{color:#25343e}
+.goal-option small{color:#71808b}
+.goal-option.active{background:#edf5f2;border-color:#9abbb1;color:#28665d}
+.goal-option.active .goal-check{background:#286b62;border-color:#286b62;color:#fff}
+.goal-check{border-color:#c5d0d6;color:#fff}
+.goal-note{color:#687984}
+.run-log-heading h3{color:#24333d}
+.run-log-heading p,.run-log-foot{color:#73828c}
+.run-count,.optional-tag,.level-pill{background:#f2f6f6;border:1px solid #e1e8e8;color:#5d716e}
+.recommendation-layout{grid-template-columns:minmax(0,1.7fr) minmax(300px,.85fr);gap:16px}
+.recommendation-heading{margin:2px 0 11px}
+.section-heading h2{color:#1c2a34}
+.live-pill{color:#657680}
+.live-pill i{background:#2d9277;box-shadow:0 0 0 3px #e5f3ee}
+.best-card{background:#fff;border:1px solid #dce6e4;box-shadow:0 5px 22px #19352e0b;padding:20px}
+.recommend-label{color:#286b62}
+.best-card h3{font-size:29px;color:#1b2932}
+.best-summary{color:#62727d}
+.best-stats{border-color:#e8edef}
+.best-stats b{color:#24695f}
+.best-stats span{color:#71808a}
+.loot-heading span{color:#53646f}
+.loot-heading small{color:#82909a}
+.upgrade-stat-filter{background:#f7f9fa!important;border-color:#e1e7eb!important}
+.upgrade-filter-heading{color:#293943}
+.upgrade-filter-heading button{color:#286b62}
+.upgrade-stat-filter p{color:#71808b}
+.upgrade-stat-options label{color:#43545f}
+.upgrade-stat-options input{accent-color:#286b62}
+.upgrade-results-count{color:#71808b}
+.loot-list{gap:8px}
+.loot-row{background:#fff;border:1px solid #e4e9ec;border-radius:10px;box-shadow:0 1px 3px #152c3808}
+.loot-row:hover{border-color:#83aaa0;background:#fbfdfc;box-shadow:0 4px 12px #1b43350d}
+.itemicon{background:#f1f5f5;border:1px solid #dce5e7;border-radius:9px}
+.loot-main>b{color:#25343e}
+.loot-main>small{color:#71808a}
+.statline span{color:#427268}
+.loot-extra{color:#286b62}
+.loot-extra b{color:#286b62}
+.loot-extra small{color:#77858e}
+.upgrade-comparison{background:#f7f9fa;border:1px solid #e7ecee}
+.comparison-items small,.comparison-head{color:#7a8992}
+.comparison-items b,.comparison-stat b{color:#30404a}
+.comparison-stat{border-color:#e9edef;color:#53616b}
+.comparison-score{border-color:#e5ebed;color:#74828b}
+.stat-up{color:#16815f}.stat-down{color:#c14f50}.stat-even{color:#75838c}
+.comparison-empty{color:#78868f}
+.best-card-foot{border-color:#e8edef;color:#7c8992}
+.best-card-foot a,.text-button,.profession-guides a{color:#286b62}
+.side-card h3{color:#25343e}
+.gear-count{color:#71808b}
+.gear-tile{background:#f8fafb;border:1px solid #e5eaed;border-radius:9px}
+.gear-info>b{color:#2d3b45}
+.gear-info>small{color:#74828c}
+.gear-info .statline span{color:#56796f}
+.profession-details summary{color:#2d3b45}
+.side-muted,.method-card p{color:#71808b}
+.profession-inputs label{background:#f7f9fa}
+.profession-inputs label span{color:#34444e}
+.alternative-row{border-color:#edf0f2}
+.alternative-row b{color:#2c3b45}
+.alternative-row small{color:#71808b}
+.rank-number{color:#286b62}
+.alt-level{color:#71808b}
+.empty-card h3{color:#2b3b45}
+.empty-card p{color:#71808b}
+.notice{background:#edf7f2;border:1px solid #cce5d8;color:#27634e}
+.welcome-panel h2{color:#24343d}
+.welcome-panel p{color:#6d7c86}
+.welcome-icon{background:#eaf3f0;color:#286b62}
+.footer{border-color:#e2e8eb;color:#8a969e}
+.wow-item-tooltip{z-index:2147483000!important}
+@media(max-width:980px){.app-shell{padding:0 20px}.recommendation-layout{grid-template-columns:1fr}}
+@media(max-width:760px){.character-strip{grid-template-columns:140px minmax(0,1fr);padding:12px;gap:12px}.character-model{height:165px}.character-actions{grid-column:1/-1;justify-content:flex-start}}
+@media(max-width:640px){.app-shell{padding:0 12px}.search-hero{padding:30px 0 20px}.search-hero h1{font-size:40px}.character-strip{grid-template-columns:112px minmax(0,1fr)}.character-model{height:145px}.best-card{padding:14px}.best-card h3{font-size:25px}}
