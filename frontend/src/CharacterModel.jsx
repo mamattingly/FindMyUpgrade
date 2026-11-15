@@ -162,7 +162,7 @@ export default function CharacterModel({modelData,armoryRenderUrl,name,previewIt
    }catch{}
    host.innerHTML="";
   };
- },[id,modelData,previewItem?.item_id,previewItem?.display_id,previewItem?.slot]);
+ },[id,modelData,previewItem?.display_id,previewItem?.slot]);
  return <div className="character-model-canvas">
   <div id={id} className="wow-armory-viewer" aria-label={name?name+" 3D Armory character model":"3D Armory character model"}/>
   {showFallback&&armoryRenderUrl&&<div className="armory-render-fallback"><img src={armoryRenderUrl.startsWith("http")?armoryRenderUrl:"https://"+armoryRenderUrl} alt={name?name+" official Armory character render":"Official Armory character render"}/></div>}
