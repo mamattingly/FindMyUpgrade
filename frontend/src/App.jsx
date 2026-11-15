@@ -8,6 +8,29 @@ const NAMES=["Alchemy","Blacksmithing","Enchanting","Engineering","Herbalism","L
 const SOURCES={Alchemy:"https://www.60.tools/guides/alchemy-leveling-guide",Blacksmithing:"https://www.60.tools/guides/blacksmithing-leveling-guide",Enchanting:"https://www.60.tools/guides/enchanting-leveling-guide",Engineering:"https://www.60.tools/guides/engineering-leveling-guide",Herbalism:"https://www.60.tools/guides/herbalism-leveling-guide",Leatherworking:"https://www.60.tools/guides/leatherworking-leveling-guide",Mining:"https://www.60.tools/guides/mining-leveling-guide",Skinning:"https://www.60.tools/guides/skinning-leveling-guide",Tailoring:"https://www.60.tools/guides/tailoring-leveling-guide",Cooking:"https://www.60.tools/guides/cooking-leveling-guide","First Aid":"https://www.60.tools/guides/first-aid-leveling-guide",Fishing:"https://www.60.tools/guides/fishing-leveling-guide"};
 const read=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key)||JSON.stringify(fallback))}catch{return fallback}};
 const iconFallback="https://wow.zamimg.com/images/wow/icons/large/inv_misc_questionmark.jpg";
+const XP_CACHE_KEY="wow-forever-dungeon-xp-cache";
+function grayMobThreshold(level){const n=Math.max(1,Number(level)||1);if(n<=5)return 0;if(n<=39)return n-5-Math.floor(n/10);return n-9;}
+async function loadForeverDungeonXp(dungeonNames){
+ const cached=read(XP_CACHE_KEY,null);
+ if(cached&&Date.now()-cached.savedAt<6*60*60*1000)return cached.data;
+ const matches=Object.fromEntries(dungeonNames.map(n=>[n,[]]));
+ for(let page=1;page<=200;page++){
+  const response=await fetch(`https://thewowdb.com/api/v1/forever/npc/?page=${page}&per_page=100`);
+  if(!response.ok)throw new Error("Could not load WoW Forever creature data.");
+  const payload=await response.json(),rows=payload.results||payload.data||payload.npcs||[];
+  if(!Array.isArray(rows)||!rows.length)break;
+  for(const npc of rows){
+   const raw=npc.level??npc.min_level??npc.minLevel??npc.level_min;
+   const level=Number(raw);if(!Number.isFinite(level)||level<=0)continue;
+   const zones=[npc.zone_name,npc.zone?.name,npc.area_name,npc.area?.name,npc.instance_name,npc.instance?.name,npc.location?.zone].filter(Boolean).join(" ").toLowerCase();
+   if(!zones)continue;
+   for(const dungeon of dungeonNames){const key=dungeon.toLowerCase();if(zones.includes(key))matches[dungeon].push(level);}
+  }
+  if(payload.has_more===false||(!payload.has_more&&rows.length<100))break;
+ }
+ localStorage.setItem(XP_CACHE_KEY,JSON.stringify({savedAt:Date.now(),data:matches}));
+ return matches;
+}
 function rankInfo(skill){if(skill>=300)return {rank:"Artisan",next:null};if(skill>=200)return {rank:"Expert",next:300};if(skill>=125)return {rank:"Expert",next:200};if(skill>=75)return {rank:"Journeyman",next:125};if(skill>=50)return {rank:"Journeyman",next:75};return {rank:"Apprentice",next:50};}
 function ItemIcon({src,name,size="large"}){return <span className={"itemicon "+size}><img src={src||iconFallback} alt={name+" icon"} loading="lazy" onError={e=>{e.currentTarget.src=iconFallback}}/></span>}
 function relevantStats(stats,className,spec){
@@ -46,7 +69,7 @@ export default function App(){
  const [region,setRegion]=useState(()=>localStorage.getItem(REGION_KEY)||"us");
  const [name,setName]=useState(""),[busy,setBusy]=useState(false),[message,setMessage]=useState(""),[active,setActive]=useState(0);
  const [skills,setSkills]=useState(()=>read(SKILL_KEY,{}));
- const [goals,setGoals]=useState(()=>read(GOALS_KEY,{gear:true,tailoring:false,enchanting:false}));
+ const [goals,setGoals]=useState(()=>read(GOALS_KEY,{gear:true,tailoring:false,enchanting:false,mustGrantXp:false}));\n const [xpMobLevels,setXpMobLevels]=useState(()=>read(XP_CACHE_KEY,null)?.data||{});\n const [xpLoading,setXpLoading]=useState(false);
  const [runLogs,setRunLogs]=useState(()=>read(RUNS_KEY,[]));
  const [runDungeon,setRunDungeon]=useState("");
  const [runMinutes,setRunMinutes]=useState("30");
@@ -60,7 +83,7 @@ export default function App(){
  useEffect(()=>localStorage.setItem(RUNS_KEY,JSON.stringify(runLogs)),[runLogs]);
  const current=profiles[active],skillKey=current?current.region+":"+current.name.toLowerCase():"";
  const currentSkills=skills[skillKey]||{},gear=useMemo(()=>current?.gear||[],[current]);
- const baseRec=current?.recommendations;
+ const baseRec=current?.recommendations;\n const dungeonNames=baseRec?.rankings?.map(d=>d.name)||[];
  const characterRuns=runLogs.filter(r=>r.characterKey===skillKey);
  const farmRanking=rankFarmDungeons(baseRec?.rankings,characterRuns,goals);
  const rec=baseRec?{...baseRec,rankings:farmRanking.rankings,recommended:farmRanking.rankings[0]||baseRec.recommended}:null;
@@ -103,7 +126,7 @@ export default function App(){
   }catch(e){setMessage(e.message||"Could not find that character.")}finally{setBusy(false)}
  }
  function setSkill(prof,value){const n=Math.max(0,Math.min(300,Number(value)||0));setSkills(old=>({...old,[skillKey]:{...(old[skillKey]||{}),[prof]:n}}))}
- function toggleGoal(key){setGoals(old=>({...old,[key]:!old[key]}))}
+ function toggleGoal(key){setGoals(old=>({...old,[key]:!old[key]}));if(key==="mustGrantXp"&&!goals.mustGrantXp&&!Object.keys(xpMobLevels).length){setXpLoading(true);loadForeverDungeonXp(dungeonNames).then(setXpMobLevels).catch(e=>setMessage(e.message)).finally(()=>setXpLoading(false));}}
  const visibleSkills=showAllSkills?NAMES:["Tailoring","Enchanting"];
  return <main className="app-shell">
   <header className="topbar">
@@ -130,19 +153,19 @@ export default function App(){
     <div className="goal-options">
      <div className="goal-option active"><span className="goal-check">✓</span><Shield size={18}/><span><b>Gear upgrades</b><small>Always included</small></span></div>
      <button className={"goal-option "+(goals.tailoring?"active":"")} onClick={()=>toggleGoal("tailoring")}><span className="goal-check">{goals.tailoring?"✓":""}</span><Package size={18}/><span><b>Tailoring</b><small>Cloth & skill progress</small></span></button>
-     <button className={"goal-option "+(goals.enchanting?"active":"")} onClick={()=>toggleGoal("enchanting")}><span className="goal-check">{goals.enchanting?"✓":""}</span><Sparkles size={18}/><span><b>Enchanting</b><small>Disenchantable loot</small></span></button>
+     <button className={"goal-option "+(goals.enchanting?"active":"")} onClick={()=>toggleGoal("enchanting")}><span className="goal-check">{goals.enchanting?"✓":""}</span><Sparkles size={18}/><span><b>Enchanting</b><small>Disenchantable loot</small></span></button>\n     <button className={"goal-option "+(goals.mustGrantXp?"active":"")} onClick={()=>toggleGoal("mustGrantXp")}><span className="goal-check">{goals.mustGrantXp?"✓":""}</span><Target size={18}/><span><b>Dungeons grant XP</b><small>{xpLoading?"Loading Forever NPCs…":"Most mobs must award XP"}</small></span></button>
     </div>
-    {(goals.tailoring||goals.enchanting)&&<p className="goal-note">Selected profession goals now influence the ranking using your logged cloth and eligible disenchantable-item yields per hour. Record runs below; unverified global drop rates are never assumed.</p>}
+    {goals.mustGrantXp&&<p className="goal-note">{xpLoading?"Loading current WoW Forever creature levels…":`XP filter: more than half of recorded dungeon mobs must be above the gray-level cutoff. ${xpQualified.length} dungeons currently qualify; dungeons with fewer than five recorded NPCs are excluded.`}</p>}\n    {(goals.tailoring||goals.enchanting)&&<p className="goal-note">Selected profession goals now influence the ranking using your logged cloth and eligible disenchantable-item yields per hour. Record runs below; unverified global drop rates are never assumed.</p>}
     {(goals.tailoring||goals.enchanting)&&<div className="goal-skills">{["Tailoring","Enchanting"].filter(p=>goals[p.toLowerCase()]).map(p=><label key={p}>{p} skill<input type="number" min="0" max="300" value={Number(currentSkills[p]??current.professions?.find(x=>x.name===p)?.skill??0)} onChange={e=>setSkill(p,e.target.value)}/><span>/ 300</span></label>)}</div>}
    </section>
    <section className="run-log-panel">
     <div className="run-log-heading"><div><div className="kicker">PERSONAL FARM DATA</div><h3>Log a dungeon run</h3><p>Record your actual clear time and yields. These measurements improve recommendations for this character only.</p></div><span className="run-count">{characterRuns.length} runs saved</span></div>
     <form className="run-log-form" onSubmit={saveRun}>
-     <label>Dungeon<select required value={runDungeon} onChange={e=>setRunDungeon(e.target.value)}><option value="">Choose dungeon</option>{(baseRec?.rankings||[]).map(d=><option key={d.name} value={d.name}>{d.name}</option>)}</select></label>
+     <label>Dungeon<select required value={runDungeon} onChange={e=>setRunDungeon(e.target.value)}><option value="">Choose dungeon</option>{(rec?.rankings||[]).map(d=><option key={d.name} value={d.name}>{d.name}</option>)}</select></label>
      <label>Minutes<input type="number" min="1" max="600" value={runMinutes} onChange={e=>setRunMinutes(e.target.value)} required/></label>
      <label>Cloth relevant to current skill<input type="number" min="0" value={runCloth} onChange={e=>setRunCloth(e.target.value)}/></label>
      <label>Items eligible at current Enchanting skill<input type="number" min="0" value={runDisenchantables} onChange={e=>setRunDisenchantables(e.target.value)}/></label>
-     <button type="submit" disabled={!baseRec?.rankings?.length}>Save run</button>
+     <button type="submit" disabled={!rec?.rankings?.length}>Save run</button>
     </form>
     <p className="run-log-foot">Only count cloth useful at your current Tailoring skill and items eligible for disenchanting at your current Enchanting skill. These are yield proxies, not guaranteed skill-ups. Log comparable full runs for the fairest comparison. Data is stored in this browser.</p>
     {farmRanking.measured&&<p className="run-log-foot">Ranking is now based on your recorded runs and the goals selected above. Dungeons without recorded runs are excluded until you log them.</p>}
@@ -160,7 +183,7 @@ export default function App(){
        <ItemIcon src={u.icon_url} name={u.name}/><span className="loot-main"><b>{u.name}</b><small>{u.slot} <span>·</span> {u.boss}</small><StatLine stats={u.stats}/></span><span className="loot-extra"><b>{u.item_level?"iLvl "+u.item_level:""}</b><small>{u.drop_chance?u.drop_chance.toFixed(1)+"% drop":"Drop rate n/a"}</small><ExternalLink size={13}/></span>
       </a>)}</div>
       <div className="best-card-foot"><span>{best.sampleCount?"Measured personal yield rates · proxies, not skill-up guarantees":"Estimated stat-weighted gear value per run"}</span><a href={best.source_url} target="_blank" rel="noreferrer">Loot source <ExternalLink size={12}/></a></div>
-     </article>:<div className="empty-card"><h3>{rec?.status==="no_upgrades_found"?"No useful upgrades found":"Dungeon analysis unavailable"}</h3><p>{rec?.message||"Run a fresh character analysis to calculate dungeon recommendations."}</p></div>}
+     </article>:<div className="empty-card"><h3>{rec?.status==="no_upgrades_found"?"No useful upgrades found":goals.mustGrantXp?"No dungeons meet the XP filter":"Dungeon analysis unavailable"}</h3><p>{goals.mustGrantXp&&xpQualified.length===0?"No dungeons have sufficient Forever NPC level records to confirm that most mobs award XP at your current level.":rec?.message||"Run a fresh character analysis to calculate dungeon recommendations."}</p></div>}
      {rec?.rankings?.length>1&&<div className="alternatives"><div className="subhead">Other dungeons worth considering</div>{rec.rankings.slice(1,5).map((d,i)=><div className="alternative-row" key={d.name}><span className="rank-number">0{i+2}</span><div><b>{d.name}</b><small>{d.upgrade_slots} upgrade slots · {d.sampleCount?`${d.avgMinutes.toFixed(0)} min avg · ${d.clothPerHour?.toFixed(1)} cloth/hr · ${d.disenchantablesPerHour?.toFixed(1)} DE items/hr`:`best drop: ${d.best_upgrade?.name}`}</small></div><span className="alt-level">Lv {d.min_level}–{d.max_level}</span></div>)}</div>}
     </div>
     <aside className="side-column">
