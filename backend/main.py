@@ -227,26 +227,24 @@ def _normalise_thewowdb_item(data, item_id):
         "data_source": "TheWoWDB",
     }
 
-def _parse_wowhead_item_page(page, item_id):
+def _parse_tooltip_fragment(page, item_id, name=None, data_url=None, data_source="WarcraftDB Forever"):
     soup = BeautifulSoup(page, "html.parser")
     for tag in soup(["script", "style", "noscript"]):
         tag.decompose()
     lines = [str(x).strip() for x in soup.stripped_strings if str(x).strip()]
     starts = [i for i, line in enumerate(lines) if re.match(r"Item Level\s+\d+", line, re.I)]
-    if not starts:
-        return None
-    start = starts[-1]
-    section = lines[start:start + 35]
+    start = starts[-1] if starts else 0
+    section = lines[start:start + 45]
     section_text = " ".join(section)
     heading = soup.find("h1")
-    name = heading.get_text(" ", strip=True) if heading else None
+    name = name or (heading.get_text(" ", strip=True) if heading else None)
     level_match = re.search(r"Item Level\s+(\d+)", section_text, re.I)
     required_match = re.search(r"Requires Level\s+(\d+)", section_text, re.I)
     drop_match = re.search(r"Drop Chance:\s*([\d.]+)\s*%", section_text, re.I)
     source_match = re.search(r"Dropped by:\s*(.*?)\s+Drop Chance:", section_text, re.I)
     armor_match = re.search(r"(\d+)\s+Armor\b", section_text, re.I)
     dps_match = re.search(r"\(([\d.]+)\s+damage per second\)", section_text, re.I)
-    type_line = next((line for line in section[1:7] if re.search(
+    type_line = next((line for line in section[:9] if re.search(
         r"\b(Head|Neck|Shoulder|Back|Chest|Robe|Shirt|Wrist|Hands|Waist|Legs|Feet|Finger|Trinket|Two-Hand|One-Hand|Main Hand|Off Hand|Held In Off-hand|Ranged)\b",
         line, re.I)), "")
     low_type = type_line.casefold()
@@ -313,9 +311,17 @@ def _parse_wowhead_item_page(page, item_id):
         "weapon_dps": float(dps_match.group(1)) if dps_match else 0,
         "drop_chance": float(drop_match.group(1)) if drop_match else None,
         "drop_source_name": source_match.group(1).strip() if source_match else None,
-        "data_url": f"https://www.wowhead.com/forever/item={int(item_id)}",
-        "data_source": "Wowhead Forever",
+        "data_url": data_url or f"https://www.wowhead.com/forever/item={int(item_id)}",
+        "data_source": data_source,
     }
+
+def _parse_wowhead_item_page(page, item_id):
+    soup = BeautifulSoup(page, "html.parser")
+    heading = soup.find("h1")
+    name = heading.get_text(" ", strip=True) if heading else None
+    return _parse_tooltip_fragment(page, item_id, name=name,
+        data_url=f"https://www.wowhead.com/forever/item={int(item_id)}",
+        data_source="Wowhead Forever")
 
 async def _wowhead_item_data(client, item_id):
     try:
