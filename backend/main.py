@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from typing import Literal
 from backend.recommendations import DUNGEONS, recommend_dungeons
 
-app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.6.4")
+app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.6.5")
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "frontend" / "dist"
 REGION_LOCALES = {"us": "en_US", "eu": "en_GB", "kr": "ko_KR", "tw": "zh_TW"}
@@ -325,7 +325,7 @@ def _parse_wowhead_item_page(page, item_id):
 
 async def _warcraftdb_item_data(client, item_id):
     try:
-        url = f"https://forever.classic.warcraftdb.com/api/v1/tooltip/item/{int(item_id)}"
+        url = f"https://forever.warcraftdb.com/api/v1/tooltip/item/{int(item_id)}"
         response = await client.get(url,
             headers={"User-Agent": "WoWForeverDungeonAdvisor/0.5 (+https://github.com/mamattingly/FindMyUpgrade)",
                      "Accept": "application/json"}, timeout=10)
@@ -334,7 +334,7 @@ async def _warcraftdb_item_data(client, item_id):
         data = response.json()
         parsed = _parse_tooltip_fragment(
             data.get("html") or "", item_id, name=data.get("name"),
-            data_url=f"https://forever.classic.warcraftdb.com/data/item/{int(item_id)}",
+            data_url=f"https://forever.warcraftdb.com/data/item/{int(item_id)}",
             data_source="WarcraftDB Forever")
         parsed["quality"] = data.get("quality")
         return {"http_status": 200, "parsed": bool(parsed.get("name") and parsed.get("stats")), **parsed}
@@ -447,14 +447,20 @@ async def _static_item_data(client, token, region, item_id, semaphore):
                 ITEM_CACHE[cache_key] = thottbot
                 return thottbot
 
-            # 2) Wowhead's Forever tooltip API (dataEnv=16) has the exact
+            # 2) WarcraftDB's public Forever tooltip endpoint.
+            warcraftdb = await _warcraftdb_item_data(client, item_id)
+            if warcraftdb.get("parsed"):
+                ITEM_CACHE[cache_key] = warcraftdb
+                return warcraftdb
+
+            # 3) Wowhead's Forever tooltip API (dataEnv=16) has the exact
             # Forever item revision and often includes the source drop chance.
             wowhead = await _wowhead_item_data(client, item_id)
             if wowhead.get("parsed") and wowhead.get("name") and wowhead.get("stats"):
                 ITEM_CACHE[cache_key] = wowhead
                 return wowhead
 
-            # 3) Blizzard Forever static first, then Classic Era metadata as a
+            # 4) Blizzard Forever static first, then Classic Era metadata as a
             # clearly-labelled fallback for legacy items absent from Forever.
             blizzard_result = None
             namespaces = (
@@ -517,10 +523,6 @@ async def _static_item_data(client, token, region, item_id, semaphore):
                         candidate["drop_source_name"] = wowhead.get("drop_source_name")
                     ITEM_CACHE[cache_key] = candidate
                     return candidate
-            warcraftdb = await _warcraftdb_item_data(client, item_id)
-            if warcraftdb.get("parsed"):
-                ITEM_CACHE[cache_key] = warcraftdb
-                return warcraftdb
             ITEM_CACHE[cache_key] = None
             return None
         except (httpx.HTTPError, ValueError, TypeError, KeyError):
