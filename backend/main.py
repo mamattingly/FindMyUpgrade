@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from typing import Literal
 from backend.recommendations import DUNGEONS, recommend_dungeons
 
-app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.5.3")
+app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.5.4")
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "frontend" / "dist"
 REGION_LOCALES = {"us": "en_US", "eu": "en_GB", "kr": "ko_KR", "tw": "zh_TW"}
@@ -320,8 +320,9 @@ def _parse_wowhead_item_page(page, item_id):
 async def _wowhead_item_data(client, item_id):
     try:
         response = await client.get(f"https://www.wowhead.com/forever/item={int(item_id)}",
-            headers={"User-Agent": "Mozilla/5.0 (compatible; ForeverDungeonAdvisor/0.5; +https://github.com/mamattingly/FindMyUpgrade)",
-                     "Accept": "text/html,application/xhtml+xml"}, timeout=10)
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                     "Accept": "text/html,application/xhtml+xml", "Accept-Language": "en-US,en;q=0.9",
+                     "Referer": "https://www.wowhead.com/"}, timeout=12)
         if response.status_code != 200:
             return {"http_status": response.status_code, "item_id": int(item_id)}
         parsed = _parse_wowhead_item_page(response.text, item_id)
