@@ -299,7 +299,11 @@ def recommend_dungeons(character: dict[str, Any], gear: list[dict[str, Any]],
                     "item_data_source": item.get("data_source") or "Unknown",
                     "drop_chance": drop_chance,
                     "drop_rate_verified": drop_chance is not None, "drop_observed": observed, "drop_encounters": encounters,
-                    "stats": item.get("stats_display") or [],
+                    "stats": [
+                        f"+{float(stat.get('value')):g} {stat.get('name')}"
+                        for stat in (item.get("stats") or [])
+                        if isinstance(stat, dict) and stat.get("name") and stat.get("value") is not None
+                    ],
                 }
                 possible_upgrades.append(candidate)
                 slot_candidates.setdefault(key, []).append(candidate)
