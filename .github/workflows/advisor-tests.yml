@@ -1,0 +1,116 @@
+name: Advisor tests and live smoke check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  offline-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install backend test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+      - name: Check Python syntax
+        run: python -m compileall -q backend tests
+      - name: Run backend unit tests
+        run: pytest -q
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm install
+          npm run build
+
+  live-smoke:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: offline-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Wait for this version to reach Render
+        env:
+          APP_URL: https://wow-forever-dungeon-advisor-1zlg.onrender.com
+          EXPECTED_VERSION: "0.5.1"
+        run: |
+          python - <<'PY'
+          import json, os, time, urllib.request
+          url = os.environ["APP_URL"].rstrip("/") + "/api/health"
+          expected = os.environ["EXPECTED_VERSION"]
+          for attempt in range(60):
+              try:
+                  with urllib.request.urlopen(url, timeout=15) as response:
+                      payload = json.load(response)
+                  version = payload.get("app_version")
+                  print("Render health:", payload)
+                  if version == expected:
+                      print("Expected app version is live.")
+                      break
+              except Exception as exc:
+                  print("Waiting for Render:", str(exc))
+              time.sleep(5)
+          else:
+              raise SystemExit(f"Render did not report app_version={expected} within five minutes.")
+          PY
+      - name: Verify Forever static item data
+        env:
+          APP_URL: https://wow-forever-dungeon-advisor-1zlg.onrender.com
+        run: |
+          python - <<'PY'
+          import json, os, urllib.parse, urllib.request
+          query = urllib.parse.urlencode({"region": "us", "ids": "7684,7713,6696"})
+          url = os.environ["APP_URL"].rstrip("/") + "/api/item-diagnostics?" + query
+          with urllib.request.urlopen(url, timeout=45) as response:
+              payload = json.load(response)
+          print(json.dumps(payload, indent=2))
+          valid = [item for item in payload.get("items", [])
+                   if item.get("http_status") == 200 and item.get("name")]
+          if not valid:
+              raise SystemExit("No Forever static item records were returned.")
+          if not any(item.get("stats") for item in valid):
+              raise SystemExit("Item records loaded, but no preview stats were returned.")
+          PY
+      - name: Verify live character scan and dungeon analysis
+        env:
+          APP_URL: https://wow-forever-dungeon-advisor-1zlg.onrender.com
+        run: |
+          python - <<'PY'
+          import json, os, urllib.request
+          url = os.environ["APP_URL"].rstrip("/") + "/api/scan"
+          body = json.dumps({"region": "us", "name": "Faith Heal"}).encode()
+          request = urllib.request.Request(url, data=body,
+              headers={"Content-Type": "application/json"}, method="POST")
+          with urllib.request.urlopen(request, timeout=180) as response:
+              payload = json.load(response)
+          print(json.dumps({
+              "character": payload.get("character"),
+              "gear_count": len(payload.get("equipped_gear") or []),
+              "unknown_gear_names": [x.get("slot") for x in payload.get("equipped_gear", [])
+                                     if not x.get("name") or x.get("name") == "Unknown item"],
+              "dungeon_recommendations": payload.get("dungeon_recommendations"),
+          }, indent=2))
+          gear = payload.get("equipped_gear") or []
+          if len(gear) < 10:
+              raise SystemExit("Live scan did not return the expected equipped gear.")
+          if any(not x.get("name") or x.get("name") == "Unknown item" for x in gear):
+              raise SystemExit("At least one equipped item name is still unknown.")
+          analysis = payload.get("dungeon_recommendations") or {}
+          if analysis.get("status") not in ("ready", "no_upgrades_found"):
+              raise SystemExit("Dungeon analysis did not complete with usable item data.")
+          if not analysis.get("dungeons_checked") or not analysis.get("items_evaluated"):
+              raise SystemExit("Dungeon analysis did not evaluate any sourced loot.")
+          PY
