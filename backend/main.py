@@ -339,11 +339,18 @@ async def _static_item_data(client, token, region, item_id, semaphore):
         return ITEM_CACHE[cache_key]
     async with semaphore:
         try:
+            # Wowhead's Forever page provides item stats and, where recorded,
+            # the boss-specific drop chance in one request.
+            wowhead = await _wowhead_item_data(client, item_id)
+            if wowhead.get("parsed") and wowhead.get("name") and wowhead.get("stats"):
+                ITEM_CACHE[cache_key] = wowhead
+                return wowhead
+
+            blizzard_result = None
             url = f"https://{region}.api.blizzard.com/data/wow/item/{int(item_id)}"
             response = await client.get(url,
                 params={"namespace": f"static-forever-{region}", "locale": REGION_LOCALES[region]},
                 headers={"Authorization": f"Bearer {token}"}, timeout=8)
-            blizzard_result = None
             if response.status_code == 200:
                 data = response.json()
                 preview = data.get("preview_item") or {}
@@ -376,38 +383,19 @@ async def _static_item_data(client, token, region, item_id, semaphore):
                     "data_url": f"https://www.wowhead.com/forever/item={int(item_id)}",
                     "data_source": "Blizzard",
                 }
-            twdb_result = None
+            # Fallback for older item IDs absent from Blizzard's static namespace.
             twdb = await client.get(f"https://thewowdb.com/api/v1/forever/item/{int(item_id)}",
                 headers={"User-Agent": "WoWForeverDungeonAdvisor/0.5 (+https://github.com/mamattingly/FindMyUpgrade)",
                          "Accept": "application/json"}, timeout=8)
-            if twdb.status_code == 200:
-                candidate = _normalise_thewowdb_item(twdb.json(), item_id)
-                if candidate.get("name"):
-                    twdb_result = candidate
-            # Wowhead's Forever item pages expose the current tooltip and the
-            # recorded drop chance/source for the actual Forever version.
-            wowhead = await _wowhead_item_data(client, item_id)
-            wowhead_result = wowhead if wowhead.get("parsed") else None
-            result = wowhead_result or twdb_result or blizzard_result
-            if result:
-                # Prefer structured Blizzard/TheWoWDB fields when available,
-                # while retaining Wowhead's per-item drop chance and source.
-                for candidate in (twdb_result, blizzard_result):
-                    if not candidate:
-                        continue
-                    for key in ("name", "required_level", "inventory_type", "item_class",
-                                "item_subclass", "item_level", "stats", "stats_display",
-                                "armor", "weapon_dps"):
-                        if candidate.get(key) not in (None, "", [], 0):
-                            result[key] = candidate[key]
-                if wowhead_result:
-                    result["drop_chance"] = wowhead_result.get("drop_chance")
-                    result["drop_source_name"] = wowhead_result.get("drop_source_name")
-                    result["data_url"] = wowhead_result.get("data_url")
-                    result["data_source"] = "Wowhead Forever"
-                if result.get("name") and (result.get("stats") or result.get("armor") or result.get("weapon_dps")):
-                    ITEM_CACHE[cache_key] = result
-                    return result
+            twdb_result = _normalise_thewowdb_item(twdb.json(), item_id) if twdb.status_code == 200 else None
+            result = blizzard_result or (twdb_result if twdb_result and twdb_result.get("name") else None)
+            if result and wowhead.get("parsed"):
+                result["drop_chance"] = wowhead.get("drop_chance")
+                result["drop_source_name"] = wowhead.get("drop_source_name")
+                result["data_url"] = wowhead.get("data_url")
+            if result and result.get("name") and (result.get("stats") or result.get("armor") or result.get("weapon_dps")):
+                ITEM_CACHE[cache_key] = result
+                return result
             ITEM_CACHE[cache_key] = None
             return None
         except (httpx.HTTPError, ValueError, TypeError, KeyError):
