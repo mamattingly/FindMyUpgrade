@@ -134,11 +134,12 @@ def item_score(item: dict[str, Any], class_name: str) -> float:
         score += float(item.get("armor") or 0) * weights.get("armor", 0.003)
     except (TypeError, ValueError):
         pass
-    try:
-        # A small item-level tie-breaker only; stats remain the primary signal.
-        score += float(item.get("item_level") or 0) * 0.02
-    except (TypeError, ValueError):
-        pass
+    if score > 0:
+        try:
+            # A small item-level tie-breaker only when the item has useful stats.
+            score += float(item.get("item_level") or 0) * 0.02
+        except (TypeError, ValueError):
+            pass
     try:
         score += float(item.get("weapon_dps") or 0) * (0.35 if class_name in ("Priest", "Mage", "Warlock") else 0.65)
     except (TypeError, ValueError):
@@ -227,7 +228,8 @@ def recommend_dungeons(character: dict[str, Any], gear: list[dict[str, Any]],
                     "slot": key, "item_id": int(item_id), "name": item.get("name"),
                     "item_level": item.get("item_level"), "required_level": item.get("required_level"),
                     "gain": gain, "boss": boss.get("boss"), "item_score": score,
-                    "wowhead_url": f"https://www.wowhead.com/forever/item={int(item_id)}",
+                    "item_url": item.get("data_url") or f"https://www.wowhead.com/forever/item={int(item_id)}",
+                    "item_data_source": item.get("data_source") or "Unknown",
                     "stats": item.get("stats_display") or [],
                 }
         upgrades = sorted(best_by_slot.values(), key=lambda x: x["gain"], reverse=True)
@@ -243,9 +245,12 @@ def recommend_dungeons(character: dict[str, Any], gear: list[dict[str, Any]],
             "access_requirement": dungeon.get("access_requirement"),
         })
     ranked.sort(key=lambda x: (x["score"], x["upgrade_slots"], x["best_upgrade"]["gain"]), reverse=True)
-    if not item_data:
+    if not catalog_dungeons:
+        status = "no_dungeon_catalog"
+        message = "No sourced dungeon loot catalog is available for this character's current level and faction."
+    elif not item_data:
         status = "data_unavailable"
-        message = "Blizzard's Forever item data could not be loaded, so no dungeon ranking was calculated."
+        message = "Forever item data could not be loaded, so no dungeon ranking was calculated."
     elif not ranked:
         status = "no_upgrades_found"
         message = "No usable dungeon drops scored above the currently equipped gear in the catalogued dungeons for this level."
@@ -257,5 +262,6 @@ def recommend_dungeons(character: dict[str, Any], gear: list[dict[str, Any]],
         "rankings": ranked[:8], "dungeons_checked": len(catalog_dungeons),
         "items_evaluated": len(item_data), "scoring": "estimated_class_stat_weights",
         "catalog_source": CATALOG_SOURCE, "catalog_license": CATALOG_LICENSE,
+        "item_data_sources": sorted({x.get("data_source", "Unknown") for x in item_data.values()}),
         "drop_rates_available": False, "run_times_available": False,
     }
