@@ -60,3 +60,10 @@ export function rankFarmDungeons(rankings,logs,goals){
  const scored=candidates.map(d=>{const components=metrics.map(m=>{const value=m.key==='gear'?(d.gearPerHour??Number(d.score||0)):m.key==='tailoring'?(d.clothPerHour||0):(d.disenchantablesPerHour||0);return m.max>0?value/m.max:0;});return {...d,farmScore:components.length?components.reduce((a,b)=>a+b,0)/components.length:0,measured:!!d.sampleCount};}).sort((a,b)=>b.farmScore-a.farmScore);
  return {rankings:scored,measured:useMeasured,missingGoals};
 }
+
+export function isDungeonXpEligible(levels, playerLevel){
+ if(!Array.isArray(levels)||levels.length<5)return false;
+ const threshold=grayMobThreshold(playerLevel);
+ const xpMobs=levels.filter(level=>Number(level)>threshold).length;
+ return xpMobs/levels.length>0.5;
+}
