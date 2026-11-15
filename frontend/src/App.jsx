@@ -5,9 +5,18 @@ import {canExportWmvCharacter,downloadWmvCharacter} from "./wowModelViewerExport
 import {KEY,REGION_KEY,SKILL_KEY,GOALS_KEY,RUNS_KEY,NAMES,SOURCES,iconFallback,read,loadForeverDungeonXp,rankInfo,relevantStats,rankFarmDungeons,XP_CACHE_KEY,isDungeonXpEligible} from "./lib/advisor.js";
 function ItemIcon({src,name,size="large"}){return <span className={"itemicon "+size}><img src={src||iconFallback} alt={name+" icon"} loading="lazy" onError={e=>{e.currentTarget.src=iconFallback}}/></span>}
 function StatLine({stats}){if(!stats?.length)return null;return <div className="statline">{stats.map((s,i)=><span key={i}>{s}</span>)}</div>}
+function normalizeTooltipStats(raw){
+ return (Array.isArray(raw)?raw:raw&&typeof raw==="object"?Object.entries(raw).map(([name,value])=>({name,value})):[]).map(stat=>{
+  if(typeof stat==="string"){const match=stat.match(/^\\s*([+-]?\\d+(?:\\.\\d+)?)\\s+(.+?)\\s*$/);return match?{name:match[2],value:Number(match[1])}:null;}
+  const name=stat?.name||stat?.stat||stat?.type?.name||stat?.type;
+  const value=Number(stat?.value??stat?.amount??0);
+  return name&&Number.isFinite(value)&&value!==0?{name:String(name),value}:null;
+ }).filter(Boolean);
+}
 function ItemTooltip({item}){
  if(!item)return null;
- const stats=(item.stat_values||item.stats||[]).map(stat=>({name:stat.name||stat.stat||stat.type?.name||"Stat",value:Number(stat.value??stat.amount??0)})).filter(stat=>stat.name&&Number.isFinite(stat.value)&&stat.value!==0);
+ const rawStats=Array.isArray(item.stat_values)&&item.stat_values.length?item.stat_values:item.stats;
+ const stats=normalizeTooltipStats(rawStats);
  return <div className="wow-item-tooltip" role="tooltip">
   <b className="tooltip-item-name">{item.name||"Unknown item"}</b>
   {item.item_level!=null&&<span className="tooltip-line">Item Level {item.item_level}</span>}
@@ -15,7 +24,7 @@ function ItemTooltip({item}){
   {item.required_level!=null&&<span className="tooltip-line">Requires Level {item.required_level}</span>}
   {item.armor!=null&&Number(item.armor)>0&&<span className="tooltip-line">{item.armor} Armor</span>}
   {item.weapon_dps!=null&&Number(item.weapon_dps)>0&&<span className="tooltip-line">{Number(item.weapon_dps).toFixed(1)} damage per second</span>}
-  {stats.length>0?<div className="tooltip-stats">{stats.map((stat,i)=><span key={i}>+{stat.value} {stat.name}</span>)}</div>:<span className="tooltip-muted">Detailed stats unavailable</span>}
+  {stats.length>0?<div className="tooltip-stats">{stats.map((stat,i)=><span key={i}>{stat.value>0?"+":""}{stat.value} {stat.name}</span>)}</div>:<span className="tooltip-muted">Detailed stats unavailable</span>}
   {item.boss&&<span className="tooltip-source">Dropped by: {item.boss}</span>}
   {item.drop_chance!=null&&<span className="tooltip-muted">Drop chance: {Number(item.drop_chance).toFixed(1)}%</span>}
  </div>;
@@ -24,9 +33,10 @@ const UPGRADE_STAT_OPTIONS=[["intellect","Intellect"],["spirit","Spirit"],["stam
 function statKey(name){const n=String(name||"").toLowerCase().replace(/[_-]/g," ");if(n.includes("intellect"))return "intellect";if(n.includes("spirit"))return "spirit";if(n.includes("stamina"))return "stamina";if(n.includes("agility"))return "agility";if(n.includes("strength"))return "strength";if(n.includes("healing"))return "spell_healing";if(n.includes("spell damage")||n.includes("spell power"))return "spell_damage";if(n.includes("spell critical")||n.includes("spell crit"))return "spell_crit";if(n.includes("mana")&&(n.includes("5")||n.includes("regen")))return "mp5";if(n.includes("attack power"))return "attack_power";if(n.includes("expertise"))return "expertise";if(n.includes("hit"))return "hit";if(n.includes("defense"))return "defense";if(n.includes("dodge"))return "dodge";if(n.includes("parry"))return "parry";if(n.includes("block"))return "block";if(n.includes("armor"))return "armor";if(n.includes("critical")||n==="crit")return "crit";return null;}
 function StatComparison({upgrade,character,selectedStats}){
  const equipped=upgrade.equipped_items||[],before=new Map(),after=new Map();
- const add=(map,stat)=>{const key=String(stat.name||stat.stat||stat.type?.name||"");const value=Number(stat.value??stat.amount??0);if(key&&Number.isFinite(value))map.set(key,(map.get(key)||0)+value);};
+ const add=(map,stat)=>{for(const parsed of normalizeTooltipStats([stat])){const key=parsed.name;map.set(key,(map.get(key)||0)+parsed.value);}};
  for(const item of equipped)for(const stat of item.stats||[])add(before,stat);
- for(const stat of upgrade.stat_values||[])add(after,stat);
+ const upgradeStats=Array.isArray(upgrade.stat_values)&&upgrade.stat_values.length?upgrade.stat_values:(upgrade.stats||[]);
+ for(const stat of upgradeStats)add(after,stat);
  const names=[...new Set([...before.keys(),...after.keys()])];
  const rows=names.map(name=>({name,key:statKey(name),old:before.get(name)||0,next:after.get(name)||0,delta:(after.get(name)||0)-(before.get(name)||0)})).filter(x=>(x.old!==0||x.next!==0)&&(!x.key||selectedStats.length===0||selectedStats.includes(x.key))).filter(x=>relevantStats([{name:x.name,value:1}],character.class,character.spec).length>0);
  return <div className="upgrade-comparison"><div className="comparison-items"><div><small>CURRENTLY EQUIPPED</small><b>{equipped.length?equipped.map(x=>x.name||"Equipped item").join(" + "):"Empty slot"}</b></div><span className="comparison-arrow">→</span><div><small>POTENTIAL UPGRADE</small><b>{upgrade.name}</b></div></div>
