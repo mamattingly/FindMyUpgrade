@@ -1268,22 +1268,31 @@ async def scan(req: ScanRequest):
 
 
 def _modelviewer_asset_candidates(viewer_flavor, clean):
-    """Try the selected Wowhead data pack, then the alternate pack for missing legacy assets."""
-    flavors = [viewer_flavor] if clean.startswith("meta/item/") else [viewer_flavor, "live" if viewer_flavor == "classic" else "classic"]
+    """Resolve legacy armor-slot requests against both Wowhead data-pack layouts."""
+    alternate = "live" if viewer_flavor == "classic" else "classic"
+    flavors = [viewer_flavor, alternate]
     candidates = []
+    armor_match = re.fullmatch(r"meta/armor/(\d+)/(\d+)\.json", clean)
+    item_match = re.fullmatch(r"meta/item/(\d+)\.json", clean)
+
     for flavor in flavors:
-        candidates.append(f"https://wow.zamimg.com/modelviewer/{flavor}/{clean}")
-        # Character equipment uses legacy armor-slot metadata in Classic. Newer
-        # data packs expose the same item appearance metadata under meta/item.
-        if flavor == "classic":
-            match = re.fullmatch(r"meta/armor/(21|22)/(\d+)\.json", clean)
-            if match:
-                candidates.append(
-                    f"https://wow.zamimg.com/modelviewer/{flavor}/meta/item/{match.group(2)}.json")
-            match = re.fullmatch(r"meta/armor/5/(\d+)\.json", clean)
-            if match:
-                candidates.append(
-                    f"https://wow.zamimg.com/modelviewer/{flavor}/meta/armor/20/{match.group(1)}.json")
+        base = f"https://wow.zamimg.com/modelviewer/{flavor}/"
+        candidates.append(base + clean)
+
+        # The viewer can request armor-slot metadata even when the CDN only
+        # publishes the corresponding item record in meta/item. Try that
+        # canonical record for every equipment slot, not just weapons/chest.
+        if armor_match:
+            display_id = armor_match.group(2)
+            candidates.append(base + f"meta/item/{display_id}.json")
+            if flavor == "classic" and armor_match.group(1) == "5":
+                candidates.append(base + f"meta/armor/20/{display_id}.json")
+
+        # Some Classic viewer builds emit item metadata paths while the
+        # available record is exposed by the alternate data pack.
+        if item_match:
+            candidates.append(base + f"meta/item/{item_match.group(1)}.json")
+
     return list(dict.fromkeys(candidates))
 
 
@@ -1309,19 +1318,28 @@ async def modelviewer_asset(viewer_flavor: str, asset_path: str):
         "Accept": "*/*",
     }
     upstream = None
-    for url in _modelviewer_asset_candidates(viewer_flavor, clean):
-        try:
-            async with httpx.AsyncClient(timeout=30, follow_redirects=True, headers=headers) as client:
+    attempted = []
+    async with httpx.AsyncClient(timeout=20, follow_redirects=True, headers=headers) as client:
+        for url in _modelviewer_asset_candidates(viewer_flavor, clean):
+            try:
                 response = await client.get(url)
-        except httpx.HTTPError:
-            continue
-        if response.status_code == 200 and response.content:
-            upstream = response
-            break
-        if response.status_code not in {404, 403}:
-            raise HTTPException(502, f"Model asset server returned HTTP {response.status_code}.")
+            except httpx.HTTPError as exc:
+                attempted.append({"url": url, "error": type(exc).__name__})
+                continue
+            attempted.append({"url": url, "status": response.status_code})
+            if response.status_code == 200 and response.content:
+                upstream = response
+                break
+            if response.status_code not in {404, 403}:
+                raise HTTPException(502, f"Model asset server returned HTTP {response.status_code}.")
     if upstream is None:
-        raise HTTPException(404, "Model asset not found in the selected or fallback data sets.")
+        # Keep the error actionable in DevTools: identify whether every source
+        # returned 404/403 or the proxy could not reach the CDN at all.
+        summary = "; ".join(
+            f"{entry.get('status', entry.get('error'))} {entry['url'].replace('https://wow.zamimg.com/modelviewer/', '')}"
+            for entry in attempted
+        )
+        raise HTTPException(404, f"Model asset unavailable upstream. Tried: {summary}")
 
     media_type = upstream.headers.get("content-type", "application/octet-stream").split(";")[0]
     body = upstream.content
