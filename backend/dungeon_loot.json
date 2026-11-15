@@ -503,6 +503,320 @@
           ]
         }
       ]
+    },
+    {
+      "name": "Ragefire Chasm",
+      "min_level": 13,
+      "max_level": 18,
+      "faction": "Horde",
+      "source_file": "ragefire%20chasm.lua",
+      "source_url": "https://github.com/ATTWoWAddon/AllTheThings/blob/master/.contrib/.db/forever/dungeons%20%26%20raids/ragefire%20chasm.lua",
+      "bosses": [
+        {
+          "npc_id": 11517,
+          "boss": "Oggleflint <Ragefire Chieftain>",
+          "items": [
+            272999,
+            272998,
+            272996
+          ]
+        },
+        {
+          "npc_id": 11520,
+          "boss": "Taragaman the Hungerer",
+          "items": [
+            14540,
+            14145,
+            14149,
+            14148
+          ]
+        },
+        {
+          "npc_id": 11518,
+          "boss": "Jergosh the Invoker",
+          "items": [
+            14151,
+            14150,
+            14147
+          ]
+        },
+        {
+          "npc_id": 11519,
+          "boss": "Bazzalan",
+          "items": [
+            273007,
+            273005,
+            273003
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Hall of Thanes",
+      "min_level": 13,
+      "max_level": 18,
+      "faction": "Alliance",
+      "source_file": "hall%20of%20thanes.lua",
+      "source_url": "https://github.com/ATTWoWAddon/AllTheThings/blob/master/.contrib/.db/forever/dungeons%20%26%20raids/hall%20of%20thanes.lua",
+      "bosses": []
+    },
+    {
+      "name": "Ruins of Lordaeron",
+      "min_level": 15,
+      "max_level": 20,
+      "faction": null,
+      "source_file": "ruins%20of%20lordaeron.lua",
+      "source_url": "https://github.com/ATTWoWAddon/AllTheThings/blob/master/.contrib/.db/forever/dungeons%20%26%20raids/ruins%20of%20lordaeron.lua",
+      "bosses": []
+    },
+    {
+      "name": "Wailing Caverns",
+      "min_level": 15,
+      "max_level": 25,
+      "faction": null,
+      "source_file": "wailing%20caverns.lua",
+      "source_url": "https://github.com/ATTWoWAddon/AllTheThings/blob/master/.contrib/.db/forever/dungeons%20%26%20raids/wailing%20caverns.lua",
+      "bosses": [
+        {
+          "npc_id": 5783,
+          "boss": "Kalldan Felmoon <Specialist Leatherworking Supplies>",
+          "items": [
+            6474,
+            6475
+          ]
+        },
+        {
+          "npc_id": 5912,
+          "boss": "Deviate Faerie Dragon",
+          "items": [
+            5243,
+            6632
+          ]
+        }
+      ]
+    },
+    {
+      "name": "The Deadmines",
+      "min_level": 18,
+      "max_level": 23,
+      "faction": null,
+      "source_file": "the%20deadmines.lua",
+      "source_url": "https://github.com/ATTWoWAddon/AllTheThings/blob/master/.contrib/.db/forever/dungeons%20%26%20raids/the%20deadmines.lua",
+      "bosses": [
+        {
+          "npc_id": 596,
+          "boss": "Brainwashed Noble",
+          "items": [
+            3902,
+            5967
+          ]
+        },
+        {
+          "npc_id": 626,
+          "boss": "Foreman Thistlenettle",
+          "items": [
+            1875,
+            2167,
+            2166,
+            2168
+          ]
+        },
+        {
+          "npc_id": 599,
+          "boss": "Marisa du'Paige",
+          "items": [
+            3019,
+            4660
+          ]
+        },
+        {
+          "npc_id": 3586,
+          "boss": "Miner Johnson",
+          "items": [
+            5443,
+            5444
+          ]
+        },
+        {
+          "npc_id": 644,
+          "boss": "Rhahk'Zor <The Foreman>",
+          "items": [
+            5187,
+            872,
+            273289
+          ]
+        },
+        {
+          "npc_id": 642,
+          "boss": "Sneed's Shredder <Lumbermaster>",
+          "items": [
+            7365,
+            2169,
+            1937,
+            285292
+          ]
+        },
+        {
+          "npc_id": 643,
+          "boss": "Sneed",
+          "items": [
+            273092,
+            210178,
+            5194,
+            5195,
+            273293
+          ]
+        },
+        {
+          "npc_id": 1763,
+          "boss": "Gilnid <The Smelter>",
+          "items": [
+            5199,
+            1156,
+            273297
+          ]
+        },
+        {
+          "npc_id": 646,
+          "boss": "Mr. Smite <The Ship's First Mate>",
+          "items": [
+            7230,
+            5196,
+            5192,
+            284715
+          ]
+        },
+        {
+          "npc_id": 647,
+          "boss": "Captain Greenskin",
+          "items": [
+            5201,
+            5200,
+            10403
+          ]
+        },
+        {
+          "npc_id": 639,
+          "boss": "Edwin VanCleef <Defias Kingpin>",
+          "items": [
+            2874,
+            3637,
+            5191,
+            5193,
+            5202,
+            10399
+          ]
+        },
+        {
+          "npc_id": 645,
+          "boss": "Cookie <The Ship's Cook>",
+          "items": [
+            8490,
+            5198,
+            5197,
+            273298,
+            273102
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Shadowfang Keep",
+      "min_level": 22,
+      "max_level": 30,
+      "faction": null,
+      "source_file": "shadowfang%20keep.lua",
+      "source_url": "https://github.com/ATTWoWAddon/AllTheThings/blob/master/.contrib/.db/forever/dungeons%20%26%20raids/shadowfang%20keep.lua",
+      "bosses": [
+        {
+          "npc_id": 3914,
+          "boss": "Rethilgore <The Cell Keeper>",
+          "items": [
+            273456,
+            5254,
+            273457
+          ]
+        },
+        {
+          "npc_id": 3864,
+          "boss": "Fel Steed/Shadow Charger",
+          "items": [
+            6341,
+            932
+          ]
+        },
+        {
+          "npc_id": 3886,
+          "boss": "Razorclaw the Butcher",
+          "items": [
+            273096,
+            1292,
+            6633,
+            6226
+          ]
+        },
+        {
+          "npc_id": 3872,
+          "boss": "Deathsworn Captain",
+          "items": [
+            6641,
+            6642
+          ]
+        },
+        {
+          "npc_id": 4279,
+          "boss": "Odo the Blindwatcher",
+          "items": [
+            6318,
+            6319,
+            273645
+          ]
+        },
+        {
+          "npc_id": 4274,
+          "boss": "Fenrus the Devourer",
+          "items": [
+            3230,
+            6340,
+            273646
+          ]
+        },
+        {
+          "npc_id": 4627,
+          "boss": "Arugal's Voidwalker",
+          "items": [
+            5943
+          ]
+        },
+        {
+          "npc_id": 3927,
+          "boss": "Wolf Master Nandos",
+          "items": [
+            3748,
+            6314,
+            273647
+          ]
+        },
+        {
+          "npc_id": 4275,
+          "boss": "Archmage Arugal",
+          "items": [
+            5442,
+            6220,
+            6324,
+            6392
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Excavation Site: Wetlands",
+      "min_level": 24,
+      "max_level": 29,
+      "faction": null,
+      "source_file": "excavation%20site%20-%20wetlands.lua",
+      "source_url": "https://github.com/ATTWoWAddon/AllTheThings/blob/master/.contrib/.db/forever/dungeons%20%26%20raids/excavation%20site%20-%20wetlands.lua",
+      "bosses": []
     }
   ]
 }
