@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from typing import Literal
 from backend.recommendations import DUNGEONS, recommend_dungeons
 
-app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.8.6")
+app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.8.7")
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "frontend" / "dist"
 REGION_LOCALES = {"us": "en_US", "eu": "en_GB", "kr": "ko_KR", "tw": "zh_TW"}
@@ -244,17 +244,21 @@ async def _blizzard_static_json(client, token, region, path, required_field=None
 
 
 MODEL_DISPLAY_CACHE = {}
+MODEL_DISPLAY_DIAGNOSTICS = {}
 
 
 def _parse_wowhead_model_display_id(page):
-    """Read the modelviewer.displayid embedded in a Wowhead item page."""
+    """Read modelviewer.displayid from JSON or JavaScript object syntax."""
+    source = page or ""
+    marker = re.search(r"""["']?modelviewer["']?\s*:""", source, re.I)
+    if not marker:
+        return None
+    # Keep the search local to the modelviewer object so another item's
+    # displayid elsewhere on a long database page cannot be mistaken for it.
+    section = source[marker.start():marker.start() + 3000]
     match = re.search(
-        r'"modelviewer"\s*:\s*\{[^{}]{0,1200}?"displayid"\s*:\s*(\d+)',
-        page or "", re.I | re.S)
-    if not match:
-        match = re.search(
-            r'"modelviewer"\s*:\s*\{[^{}]{0,1200}?"displayId"\s*:\s*(\d+)',
-            page or "", re.I | re.S)
+        r"""["']?display(?:id|Id|ID)["']?\s*:\s*["']?(\d+)""",
+        section, re.I)
     return int(match.group(1)) if match else None
 
 
@@ -266,6 +270,7 @@ async def _wowhead_page_display_id(client, item_id):
     urls = [f"https://www.wowhead.com/forever/item={item_id}"]
     if item_id < 100000:
         urls.append(f"https://www.wowhead.com/classic/item={item_id}")
+    diagnostics = []
     for url in urls:
         try:
             response = await client.get(
@@ -275,15 +280,22 @@ async def _wowhead_page_display_id(client, item_id):
                     "Accept": "text/html,application/xhtml+xml",
                 },
                 timeout=12)
-            if response.status_code != 200:
-                continue
-            display_id = _parse_wowhead_model_display_id(response.text)
+            display_id = _parse_wowhead_model_display_id(response.text) if response.status_code == 200 else None
+            diagnostics.append({
+                "url": url, "status": response.status_code,
+                "html_length": len(response.text or ""),
+                "modelviewer_present": bool(re.search(r'modelviewer', response.text or "", re.I)),
+                "display_id": display_id,
+            })
             if display_id:
                 MODEL_DISPLAY_CACHE[item_id] = display_id
+                MODEL_DISPLAY_DIAGNOSTICS[item_id] = diagnostics
                 return display_id
-        except (httpx.HTTPError, ValueError):
+        except (httpx.HTTPError, ValueError) as exc:
+            diagnostics.append({"url": url, "error": type(exc).__name__})
             continue
     MODEL_DISPLAY_CACHE[item_id] = None
+    MODEL_DISPLAY_DIAGNOSTICS[item_id] = diagnostics
     return None
 
 
@@ -389,6 +401,8 @@ async def _build_character_model(client, token, region, appearance, race_name=No
         "resolved_item_count": len(items),
         "equipped_visual_item_count": len(visible),
         "missing_display_ids": missing,
+        "display_fallback_debug": {str(item_id): MODEL_DISPLAY_DIAGNOSTICS.get(item_id, [])
+                                   for item_id in missing},
         "source": "Blizzard item appearance APIs + Wowhead modelviewer metadata fallback",
     }
 

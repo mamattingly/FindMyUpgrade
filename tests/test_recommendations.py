@@ -280,4 +280,5 @@ def test_classic_model_viewer_uses_blizzard_appearance_ids_and_display_order(mon
 def test_wowhead_item_page_model_display_id_parser():
     page = '<script>WH.Gatherer.addData(3, 1, {"id":6512,"modelviewer":{"displayid":98765,"type":1,"typeid":6512}});</script>'
     assert _parse_wowhead_model_display_id(page) == 98765
+    assert _parse_wowhead_model_display_id("modelviewer: { displayID: 12345, type: 1 }") == 12345
     assert _parse_wowhead_model_display_id("<html>no model metadata</html>") is None
