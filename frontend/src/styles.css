@@ -62,3 +62,10 @@ body{background:#101316}
 .model-gear-count{top:6px;font-size:7px;letter-spacing:.06em}
 .character-strip{min-height:280px;gap:18px}
 @media(max-width:640px){.character-model{width:150px;height:190px}.character-strip{min-height:210px;gap:10px}.character-actions{margin-left:auto}}
+
+
+/* Native desktop character export: quiet graphite with the existing muted teal accent. */
+.native-export{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 11px;border:1px solid #3b4c49;border-radius:7px;background:#202a29;color:#b6c9c3;font-size:10px;cursor:pointer}
+.native-export:hover:not(:disabled){background:#293936;border-color:#718f86}
+.native-export:disabled{opacity:.38;cursor:not-allowed}
+@media(max-width:640px){.native-export{padding:7px 8px;font-size:9px}}

@@ -1,6 +1,7 @@
 import {useEffect,useMemo,useState} from "react";
-import {Search,ChevronDown,ExternalLink,Shield,Compass,BookOpen,Sparkles,Target,Package} from "lucide-react";
+import {Search,ChevronDown,ExternalLink,Shield,Compass,BookOpen,Sparkles,Target,Package,Download} from "lucide-react";
 import CharacterModel from "./CharacterModel.jsx";
+import {canExportWmvCharacter,downloadWmvCharacter} from "./wowModelViewerExport.js";
 const KEY="wow-forever-advisor-profiles", REGION_KEY="wow-forever-advisor-region", SKILL_KEY="wow-forever-profession-skills";
 const GOALS_KEY="wow-forever-farming-goals", RUNS_KEY="wow-forever-dungeon-runs";
 const NAMES=["Alchemy","Blacksmithing","Enchanting","Engineering","Herbalism","Leatherworking","Mining","Skinning","Tailoring","Cooking","First Aid","Fishing"];
@@ -122,7 +123,7 @@ export default function App(){
    <section className="character-strip">
     <div className="character-model"><CharacterModel modelData={current.model_data} armoryRenderUrl={current.armory_render_url} name={current.name}/></div>
     <div className="char-main"><div className="char-name">{current.name}</div><div className="char-sub">{current.race} {current.class} <span>·</span> Level {current.level} <span>·</span> {current.spec||"Specialization unavailable"}</div></div>
-    <div className="character-actions"><button className="refresh-character" disabled={busy} onClick={()=>scan(current.name,String(current.region||region).toLowerCase())}>{busy?"Syncing…":"Refresh data"}</button><a className="armory-link" href={current.url} target="_blank" rel="noreferrer">Armory <ExternalLink size={13}/></a></div>
+    <div className="character-actions"><button className="refresh-character" disabled={busy} onClick={()=>scan(current.name,String(current.region||region).toLowerCase())}>{busy?"Syncing…":"Refresh data"}</button><button className="native-export" title={canExportWmvCharacter(current.model_data)?"Download a native .chr file for WoW Model Viewer 1.1. The viewer runs separately and uses your installed Forever client.":"Refresh this character after the native model export update to retrieve exact customization IDs and all gear appearances."} disabled={!canExportWmvCharacter(current.model_data)} onClick={()=>{try{const filename=downloadWmvCharacter(current.model_data,current.name,current.class);setMessage(`Downloaded ${filename}. Open it in WoW Model Viewer 1.1 with the Forever client selected.`)}catch(error){setMessage(error?.message||"Could not export the character model.")}}}><Download size={13}/> Export .chr</button><a className="armory-link" href={current.url} target="_blank" rel="noreferrer">Armory <ExternalLink size={13}/></a></div>
    </section>
    <section className="goal-panel">
     <div className="section-heading"><div><div className="kicker">FARMING PREFERENCES</div><h2>What matters on your next run?</h2></div><span className="optional-tag">Optional goals</span></div>
