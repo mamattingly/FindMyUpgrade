@@ -306,7 +306,7 @@ MODEL_APPEARANCE_DIAGNOSTICS = {}
 def _parse_icyveins_item_appearance(page):
     """Extract Icy Veins' Forever ItemAppearance ID from its item reference block."""
     text = BeautifulSoup(page or "", "html.parser").get_text(" ", strip=True)
-    match = re.search(r"\\bAppearance\\s*:\\s*(\\d+)\\b", text, re.I)
+    match = re.search(r"\bAppearance\s*:\s*(\d+)\b", text, re.I)
     return int(match.group(1)) if match else None
 
 
