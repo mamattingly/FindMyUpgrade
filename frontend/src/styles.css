@@ -83,3 +83,6 @@ body{background:#101316}
 .character-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
 @media(max-width:760px){.app-shell{padding:0 14px}.character-strip{grid-template-columns:minmax(160px,190px) minmax(0,1fr);gap:14px;min-height:250px;padding:14px}.character-model{height:220px}.char-main{align-self:center}.character-actions{grid-column:1/-1;justify-content:flex-start;margin:0}.armory-render-fallback img{transform:scale(1.8)}}
 @media(max-width:420px){.character-strip{grid-template-columns:138px minmax(0,1fr);gap:11px}.character-model{height:190px}.char-name{font-size:15px}.char-sub{line-height:1.5}.model-status{font-size:9px}}
+
+/* Keep the official Armory render underneath the live viewer until it is stable. */
+.armory-render-fallback{z-index:0!important;pointer-events:none}.armory-render-fallback.is-hidden{display:none}.wow-armory-viewer{z-index:1!important}
