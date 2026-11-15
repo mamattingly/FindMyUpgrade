@@ -47,7 +47,7 @@ jobs:
       - name: Wait for this version to reach Render
         env:
           APP_URL: https://wow-forever-dungeon-advisor-1zlg.onrender.com
-          EXPECTED_VERSION: "0.8.1"
+          EXPECTED_VERSION: "0.8.2"
         run: |
           python - <<'PY'
           import json, os, time, urllib.request
@@ -159,6 +159,30 @@ jobs:
                                      if not x.get("name") or x.get("name") == "Unknown item"],
               "dungeon_recommendations": payload.get("dungeon_recommendations"),
           }, indent=2))
+          model = payload.get("model_data") or {}
+          print("Armory model data:", json.dumps({
+              "race": model.get("race"), "gender": model.get("gender"),
+              "customizations": len(model.get("customizations") or []),
+              "visible_items": len(model.get("items") or []),
+              "missing_display_ids": model.get("missing_display_ids"),
+              "armory_render_url": payload.get("armory_render_url"),
+          }, indent=2))
+          if not model.get("race") or model.get("gender") not in (0, 1):
+              raise SystemExit("Forever appearance API did not provide usable race/gender data.")
+          if len(model.get("items") or []) < 5:
+              raise SystemExit("Fewer than five equipped item display IDs resolved for the 3D model.")
+          viewer_url = os.environ["APP_URL"].rstrip("/") + "/api/modelviewer/classic/viewer/viewer.min.js"
+          with urllib.request.urlopen(viewer_url, timeout=90) as response:
+              viewer_bytes = response.read()
+          if len(viewer_bytes) < 10000:
+              raise SystemExit("Classic 3D viewer script did not load through the asset proxy.")
+          customization_id = int(model["race"]) * 2 - 1 + int(model["gender"])
+          metadata_url = (os.environ["APP_URL"].rstrip("/") +
+              f"/api/modelviewer/classic/meta/charactercustomization/{customization_id}.json")
+          with urllib.request.urlopen(metadata_url, timeout=60) as response:
+              customization = json.load(response)
+          if not customization:
+              raise SystemExit("Classic race/gender customization metadata is empty.")
           gear = payload.get("equipped_gear") or []
           if len(gear) < 10:
               raise SystemExit("Live scan did not return the expected equipped gear.")

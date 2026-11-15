@@ -14,7 +14,7 @@ The planner is designed to combine:
 Profession goals are optional. Players who only want gear upgrades should get a simple gear-first recommendation without configuring professions.
 
 ## Current stack
-- React + Vite frontend.
+- React + Vite frontend with the Classic WoW 3D model viewer.
 - FastAPI backend with asynchronous HTTPX requests to Blizzard and item-data sources.
 - Character profiles, skill levels and preferences stored in browser localStorage.
 - Render deployment with a built frontend served by the API.

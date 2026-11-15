@@ -13,6 +13,7 @@
     "react": "latest",
     "react-dom": "latest",
     "lucide-react": "^0.468.0",
-    "three": "^0.180.0"
+    "jquery": "^3.7.1",
+    "wow-model-viewer": "^1.5.3"
   }
 }
