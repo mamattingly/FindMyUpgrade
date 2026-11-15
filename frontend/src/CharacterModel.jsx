@@ -72,7 +72,7 @@ export default function CharacterModel({race,className,spec}){
     }else{
      add(new THREE.BoxGeometry(.09,1.15,.055),trimMat,.84,1.22,0,0,0,-.12);
      add(new THREE.BoxGeometry(.28,.12,.09),trimMat,.84,.7,0,0,0,-.12);
-     add(new THREE.ConeGeometry(.11,.3,4),metal,.91,1.92,0,0,0,-.12);
+     add(new THREE.ConeGeometry(.11,.3,4),trimMat,.91,1.92,0,0,0,-.12);
     }
     const base=add(new THREE.CylinderGeometry(1.15,1.15,.08,48),mat(0x202a34),0,-.52,0);
     base.receiveShadow=false;
