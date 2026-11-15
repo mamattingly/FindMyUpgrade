@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from typing import Literal
 
-app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.4.3")
+app = FastAPI(title="WoW Forever Dungeon Advisor", version="0.4.4")
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "frontend" / "dist"
 REGION_LOCALES = {"us": "en_US", "eu": "en_GB", "kr": "ko_KR", "tw": "zh_TW"}
@@ -275,6 +275,54 @@ async def diagnostics(region: Literal["us", "eu", "kr", "tw"] = "us", name: str 
             elif endpoint == "professions" and isinstance(payload, dict):
                 result["profession_groups"] = [k for k in ("primaries", "secondaries") if isinstance(payload.get(k), list)]
         return result
+
+
+
+async def _static_item_diagnostic(client, token, region, item_id):
+    url = f"https://{region}.api.blizzard.com/data/wow/item/{int(item_id)}"
+    try:
+        response = await client.get(url,
+            params={"namespace": f"static-forever-{region}", "locale": REGION_LOCALES[region]},
+            headers={"Authorization": f"Bearer {token}"})
+        if response.status_code != 200:
+            return {"item_id": int(item_id), "http_status": response.status_code}
+        data = response.json()
+        preview = data.get("preview_item") or {}
+        stats = preview.get("stats") or []
+        return {
+            "item_id": int(item_id),
+            "http_status": 200,
+            "name": data.get("name"),
+            "top_keys": sorted(data.keys()),
+            "required_level": data.get("required_level"),
+            "inventory_type": (data.get("inventory_type") or {}).get("name"),
+            "item_class": (data.get("item_class") or {}).get("name"),
+            "item_subclass": (data.get("item_subclass") or {}).get("name"),
+            "preview_keys": sorted(preview.keys()),
+            "item_level": (preview.get("level") or {}).get("value"),
+            "stats": [
+                {"name": (s.get("type") or {}).get("name"), "value": s.get("value"),
+                 "display": (s.get("display") or {}).get("display_string")}
+                for s in stats if isinstance(s, dict)
+            ],
+        }
+    except (httpx.HTTPError, ValueError, TypeError):
+        return {"item_id": int(item_id), "http_status": None, "error": "request_or_json_error"}
+
+@app.get("/api/item-diagnostics")
+async def item_diagnostics(region: Literal["us", "eu", "kr", "tw"] = "us", ids: str = "7684,7713,6696"):
+    try:
+        item_ids = [int(x.strip()) for x in ids.split(",") if x.strip()]
+    except ValueError:
+        raise HTTPException(400, "Item IDs must be comma-separated integers.")
+    if not item_ids or len(item_ids) > 12:
+        raise HTTPException(400, "Supply between 1 and 12 item IDs.")
+    async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+        token, auth = await _blizzard_token_diagnostic(client)
+        if not token:
+            return {"app_version": app.version, **auth, "items": []}
+        items = await asyncio.gather(*[_static_item_diagnostic(client, token, region, x) for x in item_ids])
+        return {"app_version": app.version, "region": region.upper(), "items": items}
 
 @app.post("/api/analyze")
 async def analyze(payload: dict):
