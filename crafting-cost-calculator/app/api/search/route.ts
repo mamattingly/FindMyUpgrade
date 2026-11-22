@@ -1,3 +1,4 @@
+import { rankSearchResults } from "@/lib/search";
 import { NextRequest, NextResponse } from "next/server";
 export const revalidate = 3600;
 const region = process.env.BLIZZARD_REGION || "us";
@@ -42,11 +43,14 @@ export async function GET(req:NextRequest) {
       if(recipe?.id)results.push({kind:"recipe",id:recipe.id,name:recipe.name||`Recipe ${id}`,profession:"Recipe",outputId:recipe.crafted_item?.id||recipe.id});
       return NextResponse.json({results,count:results.length,source:"blizzard"});
     }
-    const [items,recipes]=await Promise.all([search("item",term,bearer),search("recipe",term,bearer)]);
-    const results=[
-      ...recipes.map((r:any)=>({kind:"recipe",id:r.id,name:r.name||r.display_string||`Recipe ${r.id}`,profession:r.profession?.name||r.profession||"Recipe",outputId:r.crafted_item?.id||r.id})),
-      ...items.map((i:any)=>({kind:"item",id:i.id,name:i.name||i.display_string||`Item ${i.id}`}))
-    ];
+    const [directItems,directRecipes]=await Promise.all([search("item",term,bearer),search("recipe",term,bearer)]);
+    const [itemCandidates,recipeCandidates]=await Promise.all([
+      directItems.length?Promise.resolve(directItems):search("item",term.slice(0,Math.min(3,term.length)),bearer),
+      directRecipes.length?Promise.resolve(directRecipes):search("recipe",term.slice(0,Math.min(3,term.length)),bearer)
+    ]);
+    const items=rankSearchResults(itemCandidates.map((i:any)=>({kind:"item",id:i.id,name:i.name||i.display_string||`Item ${i.id}`})),term,25);
+    const recipes=rankSearchResults(recipeCandidates.map((r:any)=>({kind:"recipe",id:r.id,name:r.name||r.display_string||`Recipe ${r.id}`,profession:r.profession?.name||r.profession||"Recipe",outputId:r.crafted_item?.id||r.id})),term,25);
+    const results=[...recipes,...items];
     return NextResponse.json({results,count:results.length,source:"blizzard"},{headers:{"Cache-Control":"public, s-maxage=3600, stale-while-revalidate=86400"}});
   } catch(error) {
     return NextResponse.json({results:[],source:"unavailable",error:error instanceof Error?error.message:"Search failed."},{status:502});
