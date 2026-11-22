@@ -13,7 +13,7 @@ const fuseOptions = {
 export function rankSearchResults<T extends Searchable>(items: T[], rawQuery: string, limit = 50): T[] {
   const query = rawQuery.trim();
   if (!query || limit <= 0) return [];
-  if (/^\\d+$/.test(query)) {
+  if (/^[0-9]+$/.test(query)) {
     const exact = items.filter(item => String(item.id) === query);
     if (exact.length) return exact.slice(0, limit);
   }
