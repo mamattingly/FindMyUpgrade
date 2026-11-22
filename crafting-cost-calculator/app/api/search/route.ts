@@ -31,6 +31,17 @@ export async function GET(req:NextRequest) {
   if(term.length<2) return NextResponse.json({results:[]});
   try {
     const bearer=await accessToken();
+    if (/^\\d+$/.test(term)) {
+      const id=Number(term);
+      const [item,recipe]=await Promise.all([
+        fetch(new URL(`/data/wow/item/${id}?namespace=static-forever-${region}&locale=${locale}`,base),{headers:{Authorization:"Bearer "+bearer},next:{revalidate:3600},signal:AbortSignal.timeout(10000)}).then(r=>r.ok?r.json():null).catch(()=>null),
+        fetch(new URL(`/data/wow/recipe/${id}?namespace=static-forever-${region}&locale=${locale}`,base),{headers:{Authorization:"Bearer "+bearer},next:{revalidate:3600},signal:AbortSignal.timeout(10000)}).then(r=>r.ok?r.json():null).catch(()=>null)
+      ]);
+      const results:any[]=[];
+      if(item?.id)results.push({kind:"item",id:item.id,name:item.name||`Item ${id}`});
+      if(recipe?.id)results.push({kind:"recipe",id:recipe.id,name:recipe.name||`Recipe ${id}`,profession:"Recipe",outputId:recipe.crafted_item?.id||recipe.id});
+      return NextResponse.json({results,count:results.length,source:"blizzard"});
+    }
     const [items,recipes]=await Promise.all([search("item",term,bearer),search("recipe",term,bearer)]);
     const results=[
       ...recipes.map((r:any)=>({kind:"recipe",id:r.id,name:r.name||r.display_string||`Recipe ${r.id}`,profession:r.profession?.name||r.profession||"Recipe",outputId:r.crafted_item?.id||r.id})),
