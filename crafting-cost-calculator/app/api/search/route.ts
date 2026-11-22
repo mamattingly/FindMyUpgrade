@@ -31,7 +31,7 @@ export async function GET(req:NextRequest) {
   if(term.length<2) return NextResponse.json({results:[]});
   try {
     const bearer=await accessToken();
-    if (/^\\d+$/.test(term)) {
+    if (/^[0-9]+$/.test(term)) {
       const id=Number(term);
       const [item,recipe]=await Promise.all([
         fetch(new URL(`/data/wow/item/${id}?namespace=static-forever-${region}&locale=${locale}`,base),{headers:{Authorization:"Bearer "+bearer},next:{revalidate:3600},signal:AbortSignal.timeout(10000)}).then(r=>r.ok?r.json():null).catch(()=>null),
