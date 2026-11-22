@@ -2,7 +2,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Activity, ArrowDownUp, ArrowRight, Bookmark, Check, ChevronDown, Clock3, Coins, Hammer, Layers3, Package, Search, Settings2, ShieldCheck, Sparkles, TrendingUp, X } from "lucide-react";
 type Recipe = { id:number; name:string; profession:string; outputId:number; outputName:string; outputCount:number; reagents:{id:number;name:string;quantity:number}[]; skill?:number };
-type Market = { itemId:number; lowest:number|null; median:number|null; quantity:number; updatedAt:string; source:string; vendorPurchasePrice?:number|null };\ntype SearchResult = { kind:"recipe"|"item"; id:number; name:string; profession?:string; outputId?:number };
+type Market = { itemId:number; lowest:number|null; median:number|null; quantity:number; updatedAt:string; source:string; vendorPurchasePrice?:number|null };
+type SearchResult = { kind:"recipe"|"item"; id:number; name:string; profession?:string; outputId?:number };
 const gold=(c:number)=>{const g=Math.floor(c/10000),s=Math.floor(c%10000/100),b=c%100;return [g?g+"g":null,s?s+"s":null,b?b+"c":null].filter(Boolean).join(" ")||"0c"};
 const professions=["Alchemy","Blacksmithing","Enchanting","Engineering","Leatherworking","Tailoring","Cooking"];
 export default function Home(){
