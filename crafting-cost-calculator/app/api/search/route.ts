@@ -1,58 +1,31 @@
-import { rankSearchResults } from "@/lib/search";
 import { NextRequest, NextResponse } from "next/server";
-export const revalidate = 3600;
-const region = process.env.BLIZZARD_REGION || "us";
-const locale = process.env.BLIZZARD_LOCALE || "en_US";
-const base = region === "eu" ? "https://eu.api.blizzard.com" : "https://us.api.blizzard.com";
-let token: { value: string; expires: number } | null = null;
-async function accessToken() {
-  if (token && token.expires > Date.now() + 60000) return token.value;
-  const id = process.env.BLIZZARD_CLIENT_ID, secret = process.env.BLIZZARD_CLIENT_SECRET;
-  if (!id || !secret) throw new Error("Blizzard API credentials are missing.");
-  const response = await fetch("https://oauth.battle.net/token", { method:"POST", headers:{Authorization:"Basic "+Buffer.from(id+":"+secret).toString("base64"),"Content-Type":"application/x-www-form-urlencoded"}, body:"grant_type=client_credentials", signal:AbortSignal.timeout(10000) });
-  if (!response.ok) throw new Error("Blizzard OAuth failed ("+response.status+").");
-  const data=await response.json(); token={value:data.access_token,expires:Date.now()+data.expires_in*1000}; return token.value;
-}
-async function search(kind:"item"|"recipe", term:string, bearer:string) {
-  const url=new URL(`/data/wow/search/${kind}`,base);
-  url.searchParams.set("namespace",`static-forever-${region}`);
-  url.searchParams.set(`name.${locale}`,term);
-  url.searchParams.set("orderby","id");
-  url.searchParams.set("_page","1");
-  const response=await fetch(url,{headers:{Authorization:"Bearer "+bearer},next:{revalidate:3600},signal:AbortSignal.timeout(12000)});
-  if (!response.ok) {
-    if (response.status===400 || response.status===404) return [];
-    throw new Error(`Blizzard ${kind} search failed (${response.status}).`);
-  }
-  const data=await response.json();
-  return (data.results||[]).map((row:any)=>row.data||row).filter((row:any)=>row.id).slice(0,25);
-}
-export async function GET(req:NextRequest) {
-  const term=(req.nextUrl.searchParams.get("q")||"").trim().slice(0,80);
-  if(term.length<2) return NextResponse.json({results:[]});
+import { catalogStatus, getCatalog, searchCatalog } from "@/lib/catalog";
+
+export const dynamic = "force-dynamic";
+export const maxDuration = 300;
+
+export async function GET(req: NextRequest) {
+  const query = (req.nextUrl.searchParams.get("q") || "").trim().slice(0, 80);
+  if (query.length < 2) return NextResponse.json({ results: [], ...catalogStatus() });
   try {
-    const bearer=await accessToken();
-    if (/^[0-9]+$/.test(term)) {
-      const id=Number(term);
-      const [item,recipe]=await Promise.all([
-        fetch(new URL(`/data/wow/item/${id}?namespace=static-forever-${region}&locale=${locale}`,base),{headers:{Authorization:"Bearer "+bearer},next:{revalidate:3600},signal:AbortSignal.timeout(10000)}).then(r=>r.ok?r.json():null).catch(()=>null),
-        fetch(new URL(`/data/wow/recipe/${id}?namespace=static-forever-${region}&locale=${locale}`,base),{headers:{Authorization:"Bearer "+bearer},next:{revalidate:3600},signal:AbortSignal.timeout(10000)}).then(r=>r.ok?r.json():null).catch(()=>null)
-      ]);
-      const results:any[]=[];
-      if(item?.id)results.push({kind:"item",id:item.id,name:item.name||`Item ${id}`});
-      if(recipe?.id)results.push({kind:"recipe",id:recipe.id,name:recipe.name||`Recipe ${id}`,profession:"Recipe",outputId:recipe.crafted_item?.id||recipe.id});
-      return NextResponse.json({results,count:results.length,source:"blizzard"});
-    }
-    const [directItems,directRecipes]=await Promise.all([search("item",term,bearer),search("recipe",term,bearer)]);
-    const [itemCandidates,recipeCandidates]=await Promise.all([
-      directItems.length?Promise.resolve(directItems):search("item",term.slice(0,Math.min(3,term.length)),bearer),
-      directRecipes.length?Promise.resolve(directRecipes):search("recipe",term.slice(0,Math.min(3,term.length)),bearer)
-    ]);
-    const items=rankSearchResults(itemCandidates.map((i:any)=>({kind:"item",id:i.id,name:i.name||i.display_string||`Item ${i.id}`})),term,25);
-    const recipes=rankSearchResults(recipeCandidates.map((r:any)=>({kind:"recipe",id:r.id,name:r.name||r.display_string||`Recipe ${r.id}`,profession:r.profession?.name||r.profession||"Recipe",outputId:r.crafted_item?.id||r.id})),term,25);
-    const results=[...recipes,...items];
-    return NextResponse.json({results,count:results.length,source:"blizzard"},{headers:{"Cache-Control":"public, s-maxage=3600, stale-while-revalidate=86400"}});
-  } catch(error) {
-    return NextResponse.json({results:[],source:"unavailable",error:error instanceof Error?error.message:"Search failed."},{status:502});
+    const catalog = await getCatalog();
+    const results = searchCatalog(catalog, query, 50);
+    return NextResponse.json({
+      results,
+      count: results.length,
+      source: "local-index",
+      ready: true,
+      itemCount: catalog.itemCount,
+      recipeCount: catalog.recipeCount,
+      syncedAt: catalog.syncedAt,
+      namespace: catalog.namespace,
+    }, { headers: { "Cache-Control": "private, no-store" } });
+  } catch (error) {
+    return NextResponse.json({
+      results: [],
+      source: "unavailable",
+      ...catalogStatus(),
+      error: error instanceof Error ? error.message : "Catalogue search failed.",
+    }, { status: 503 });
   }
 }
