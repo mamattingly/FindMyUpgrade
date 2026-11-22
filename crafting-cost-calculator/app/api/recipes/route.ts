@@ -51,24 +51,20 @@ export async function GET() {
   try {
     const index = await bnet("/data/wow/profession/index");
     const professions = index.professions || [];
-    const tierRows: { profession: string; tierId: number }[] = [];
     const professionDetails = await pool(professions, 5, async (profession: any) => {
       const detail = await bnet(`/data/wow/profession/${profession.id}`);
-      return { name: displayName(profession), tiers: detail.skill_tiers || [] };
+      return { id: profession.id, name: displayName(profession), tiers: detail.skill_tiers || [] };
     });
-    for (const profession of professionDetails) {
-      for (const tier of profession.tiers) tierRows.push({ profession: profession.name, tierId: tier.id });
-    }
-
-    const tiers = await pool(tierRows, 6, async (row) => {
-      const data = await bnet(`/data/wow/profession/${professionDetails.find((p: any) => p.name === row.profession)?.tiers.find((t: any) => t.id === row.tierId)?.id || 0}/skill-tier/${row.tierId}`);
+    const tierRows = professionDetails.flatMap((profession: any) =>
+      profession.tiers.map((tier: any) => ({ professionId: profession.id, profession: profession.name, tierId: tier.id }))
+    );
+    const tiers = await pool(tierRows, 6, async (row: any) => {
+      const data = await bnet(`/data/wow/profession/${row.professionId}/skill-tier/${row.tierId}`);
       return { profession: row.profession, recipes: (data.categories || []).flatMap((category: any) => category.recipes || []) };
     });
-
-    const recipeRefs = tiers.flatMap((tier) => tier.recipes.map((entry: any) => ({ profession: tier.profession, ref: entry.recipe || entry })))
+    const recipeRefs = tiers.flatMap((tier: any) => tier.recipes.map((entry: any) => ({ profession: tier.profession, ref: entry.recipe || entry })))
       .filter((entry: any) => Number(entry.ref?.id) > 0);
     const unique = Array.from(new Map(recipeRefs.map((entry: any) => [entry.ref.id, entry])).values());
-
     const details = await pool(unique, 8, async (entry: any) => {
       try {
         const data = await bnet(`/data/wow/recipe/${entry.ref.id}`);
@@ -77,20 +73,16 @@ export async function GET() {
         return { id: entry.ref.id, name: entry.ref.name || "Unknown recipe", profession: entry.profession, reagents: [] };
       }
     });
-
     const itemIds = Array.from(new Set(details.flatMap((recipe: any) => [
       recipe.crafted_item?.id,
       ...(recipe.reagents || []).map((r: any) => r.reagent?.id)
     ]).filter((id: any) => Number(id) > 0)));
     const itemNames = new Map<number, string>();
-    await pool(itemIds, 10, async (id) => {
-      try {
-        const item = await bnet(`/data/wow/item/${id}`);
-        itemNames.set(id, displayName(item));
-      } catch { itemNames.set(id, `Item ${id}`); }
+    await pool(itemIds, 10, async (id: number) => {
+      try { itemNames.set(id, displayName(await bnet(`/data/wow/item/${id}`))); }
+      catch { itemNames.set(id, `Item ${id}`); }
       return true;
     });
-
     const recipes = details.map((recipe: any) => ({
       id: recipe.id,
       name: displayName(recipe),
@@ -104,15 +96,10 @@ export async function GET() {
         quantity: row.quantity || 1
       })).filter((row: any) => row.id > 0)
     })).filter((recipe: any) => recipe.reagents.length > 0);
-
     return NextResponse.json({ recipes, source: "blizzard", count: recipes.length }, {
       headers: { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400" }
     });
   } catch (error) {
-    return NextResponse.json({
-      recipes: [],
-      source: "unavailable",
-      message: error instanceof Error ? error.message : "Recipe data unavailable."
-    }, { status: 200 });
+    return NextResponse.json({ recipes: [], source: "unavailable", message: error instanceof Error ? error.message : "Recipe data unavailable." }, { status: 200 });
   }
 }
