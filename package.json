@@ -1,0 +1,8 @@
+{
+  "name": "forever-forge-render-launcher",
+  "private": true,
+  "scripts": {
+    "build": "npm --prefix crafting-cost-calculator install && npm --prefix crafting-cost-calculator run build",
+    "start": "npm --prefix crafting-cost-calculator start"
+  }
+}
