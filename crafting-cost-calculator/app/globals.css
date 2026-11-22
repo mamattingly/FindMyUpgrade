@@ -71,3 +71,5 @@
 .market-disclaimer{font:9px 'DM Mono';color:#6f7b84;margin-top:15px}
 @media(max-width:900px){.market-layout{grid-template-columns:1fr}.market-detail{min-height:220px}}
 @media(max-width:580px){.market-table-head,.market-row{grid-template-columns:minmax(120px,1fr) 70px 60px 95px;gap:6px;padding:10px 8px}.market-item{gap:6px}.market-item i{width:28px;height:28px}.market-item b{font-size:10px}.market-row{font-size:9px}.auction-heading{align-items:flex-start;flex-direction:column;gap:14px}.auction-realm{text-align:left}}
+
+.material-name{position:relative;cursor:help}.material-name:hover .item-tooltip{display:block}.material-name .item-tooltip{left:0;top:calc(100% + 8px);transform:none}.material-name>b{cursor:help}
