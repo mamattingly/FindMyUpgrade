@@ -60,7 +60,18 @@ async function bnet(path: string, bearer: string) {
   if (!response.ok) throw new Error(`Blizzard API ${response.status} at ${path}`);
   return response.json();
 }
-const displayName = (value: any) => value?.name || value?.display_string || String(value?.id || "Unknown");
+const localizedText = (value: any): string => {
+  if (typeof value === "string") return value;
+  if (typeof value === "number") return String(value);
+  if (value && typeof value === "object") {
+    const preferred = value[locale] ?? value.en_US ?? value.en_GB ?? value["en-US"];
+    if (typeof preferred === "string") return preferred;
+    const first = Object.values(value).find((entry): entry is string => typeof entry === "string");
+    if (first) return first;
+  }
+  return "";
+};
+const displayName = (value: any) => localizedText(value?.name) || localizedText(value?.display_string) || String(value?.id || "Unknown");
 const unwrap = (rows: any[]) => rows.map(row => row?.data || row).filter(row => Number.isInteger(row?.id));
 
 async function indexEveryItem(bearer: string): Promise<CatalogEntry[]> {
